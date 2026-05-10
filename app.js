@@ -7,6 +7,8 @@ let state = {
     pathPoints: [],
     lastLocation: null,
     timerInterval: null,
+    steps: 0,
+    lastStepTime: 0,
     xp: parseInt(localStorage.getItem('run_xp')) || 0,
     level: parseInt(localStorage.getItem('run_lvl')) || 1,
     userName: localStorage.getItem('run_name') || 'Koşucu',
@@ -18,6 +20,7 @@ const UI = {
     app: document.getElementById('app'),
     distance: document.getElementById('distance'),
     time: document.getElementById('time'),
+    steps: document.getElementById('steps'),
     pace: document.getElementById('pace'),
     calories: document.getElementById('calories'),
     lvl: document.getElementById('lvl'),
@@ -108,6 +111,18 @@ function init() {
 
 function startTracking() {
     if (!("geolocation" in navigator)) return;
+    
+    // Request Motion Permission for iOS
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        DeviceMotionEvent.requestPermission().then(permissionState => {
+            if (permissionState === 'granted') {
+                window.addEventListener('devicemotion', onMotionUpdate);
+            }
+        });
+    } else {
+        window.addEventListener('devicemotion', onMotionUpdate);
+    }
+
     state.isTracking = true;
     state.startTime = Date.now();
     state.lastMilestone = 0;
@@ -127,6 +142,7 @@ function stopTracking() {
     state.isTracking = false;
     clearInterval(state.timerInterval);
     navigator.geolocation.clearWatch(state.watchId);
+    window.removeEventListener('devicemotion', onMotionUpdate);
 
     UI.btnStop.classList.add('hidden');
     UI.btnReset.classList.remove('hidden');
@@ -139,12 +155,14 @@ function stopTracking() {
 
 function resetTracking() {
     state.totalDistance = 0;
+    state.steps = 0;
     state.pathPoints = [];
     state.lastLocation = null;
     state.startTime = null;
 
     UI.distance.innerText = "0.00";
     UI.time.innerText = "00:00:00";
+    UI.steps.innerText = "0";
     UI.pace.innerText = "0:00";
     UI.calories.innerText = "0";
 
@@ -158,16 +176,18 @@ function resetTracking() {
 
 function onLocationUpdate(position) {
     const { latitude, longitude, accuracy } = position.coords;
-    if (accuracy > 35) return;
+    if (accuracy > 50) return; // Slightly relaxed for indoor/shaky GPS
 
     const currentLatLng = [latitude, longitude];
 
     if (state.lastLocation) {
         const dist = calculateDistance(state.lastLocation[0], state.lastLocation[1], latitude, longitude);
-        state.totalDistance += dist;
-        addXP(Math.floor(dist / 5)); // 1 XP every 5 meters
+        // Minimum move threshold to avoid GPS "jumping" at home
+        if (dist > 2) {
+            state.totalDistance += dist;
+            addXP(Math.floor(dist / 2)); 
+        }
         
-        // Voice milestone every 500m
         const currentKm = state.totalDistance / 1000;
         if (Math.floor(state.totalDistance / 500) > state.lastMilestone) {
             state.lastMilestone = Math.floor(state.totalDistance / 500);
@@ -184,6 +204,30 @@ function onLocationUpdate(position) {
     polyline.setLatLngs(state.pathPoints);
     updateUserMarker(latitude, longitude);
     if (!state.isReplaying) map.panTo(currentLatLng);
+}
+
+// --- Step Counting ---
+function onMotionUpdate(event) {
+    if (!state.isTracking) return;
+    
+    const acc = event.accelerationIncludingGravity;
+    if (!acc) return;
+
+    // Calculate total acceleration magnitude
+    const magnitude = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
+    
+    // Simple step detection threshold (tuned for walking/running)
+    const threshold = 12.5; 
+    const now = Date.now();
+    
+    if (magnitude > threshold && (now - state.lastStepTime) > 300) {
+        state.steps++;
+        state.lastStepTime = now;
+        UI.steps.innerText = state.steps;
+        
+        // Every step gives a tiny bit of XP if at home
+        if (state.totalDistance < 10) addXP(0.1); 
+    }
 }
 
 // --- Cinematic Replay ---
