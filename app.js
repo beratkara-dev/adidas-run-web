@@ -48,7 +48,8 @@ const UI = {
     replayOverlay: document.getElementById('replay-overlay'),
     btnStopReplay: document.getElementById('btnStopReplay'),
 
-    // Health UI
+    // AI Plan UI
+    btnClosePlan: document.getElementById('btnClosePlan'),
     inputHeight: document.getElementById('input-height'),
     inputWeight: document.getElementById('input-weight'),
     inputAge: document.getElementById('input-age'),
@@ -59,7 +60,8 @@ const UI = {
     targetBurn: document.getElementById('target-burn'),
     targetIntake: document.getElementById('target-intake'),
     mealAdvice: document.getElementById('meal-advice'),
-    dailyTask: document.getElementById('daily-task')
+    dailyTask: document.getElementById('daily-task'),
+    toastContainer: document.getElementById('toast-container')
 };
 
 // --- Map Initialization ---
@@ -69,6 +71,14 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 let polyline = L.polyline([], { color: '#e2ff00', weight: 8, opacity: 0.8 }).addTo(map);
 let replayPolyline = L.polyline([], { color: '#ffffff', weight: 10, opacity: 1 }).addTo(map);
 let userMarker = null;
+
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerText = message;
+    UI.toastContainer.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
 
 function speak(text) {
     if (!window.speechSynthesis) return;
@@ -101,6 +111,7 @@ function init() {
     UI.drawerOverlay.addEventListener('click', () => UI.drawer.classList.remove('active'));
     
     UI.btnCreatePlan.addEventListener('click', createDailyPlan);
+    UI.btnClosePlan.addEventListener('click', () => UI.dailyPlanCard.classList.add('hidden'));
 
     UI.btnHistory.addEventListener('click', () => { renderHistory(); UI.historyModal.classList.remove('hidden'); });
     UI.btnCloseHistory.addEventListener('click', () => UI.historyModal.classList.add('hidden'));
@@ -111,6 +122,8 @@ function init() {
 
 function startTracking() {
     if (!("geolocation" in navigator)) return;
+    
+    // Permission & Motion
     if (typeof DeviceMotionEvent.requestPermission === 'function') {
         DeviceMotionEvent.requestPermission().then(p => { if (p === 'granted') window.addEventListener('devicemotion', onMotionUpdate); });
     } else { window.addEventListener('devicemotion', onMotionUpdate); }
@@ -119,8 +132,11 @@ function startTracking() {
     state.startTime = Date.now();
     UI.btnStart.classList.add('hidden');
     UI.activeControls.classList.remove('hidden');
+    
     state.timerInterval = setInterval(updateTimer, 1000);
     state.watchId = navigator.geolocation.watchPosition(onLocationUpdate, null, { enableHighAccuracy: true });
+    
+    showToast("Koşu Başlatıldı! 🏃‍♂️");
     speak(`Koşu başladı. Başarılar ${state.userName}!`);
 }
 
@@ -129,11 +145,14 @@ function stopTracking() {
     clearInterval(state.timerInterval);
     navigator.geolocation.clearWatch(state.watchId);
     window.removeEventListener('devicemotion', onMotionUpdate);
+    
     UI.btnStop.classList.add('hidden');
     UI.btnReset.classList.remove('hidden');
     if (state.pathPoints.length > 2) UI.btnReplay.classList.remove('hidden');
+    
     saveRunToHistory();
     saveData();
+    showToast("Koşu Tamamlandı! 🏆");
     speak(`Koşu bitti. ${(state.totalDistance / 1000).toFixed(2)} kilometre koştun.`);
 }
 
@@ -141,7 +160,7 @@ function resetTracking() {
     state.totalDistance = 0; state.steps = 0; state.pathPoints = []; state.lastLocation = null; state.startTime = null;
     UI.distance.innerText = "0.00"; UI.time.innerText = "00:00:00"; UI.steps.innerText = "0"; UI.pace.innerText = "0:00"; UI.calories.innerText = "0";
     polyline.setLatLngs([]); replayPolyline.setLatLngs([]);
-    UI.btnStart.classList.remove('hidden'); UI.activeControls.classList.add('hidden'); UI.btnReplay.classList.add('hidden');
+    UI.btnStart.classList.remove('hidden'); UI.activeControls.classList.add('hidden'); UI.btnStop.classList.remove('hidden'); UI.btnReplay.classList.add('hidden');
 }
 
 function onLocationUpdate(position) {
@@ -179,34 +198,29 @@ function createDailyPlan() {
     const a = parseInt(UI.inputAge.value);
     const g = UI.inputGender.value;
 
-    if (!h || !w || !a) { alert("Lütfen tüm sağlık verilerini girin!"); return; }
+    if (!h || !w || !a) { showToast("Lütfen verileri eksiksiz girin!"); return; }
 
     state.healthData = { height: h, weight: w, age: a, gender: g };
     localStorage.setItem('run_health', JSON.stringify(state.healthData));
     
     renderDailyPlan();
     UI.drawer.classList.remove('active');
-    speak("Harika! Senin için özel bir günlük sağlık planı oluşturdum. Dashboard'dan inceleyebilirsin.");
+    showToast("Program Hazırlandı! ⚡");
+    speak("Harika! Senin için özel planını oluşturdum.");
 }
 
 function renderDailyPlan() {
     const { height, weight, age, gender } = state.healthData;
-    
-    // BMR Calculation (Mifflin-St Jeor)
     let bmr = (10 * weight) + (6.25 * height) - (5 * age);
     bmr = (gender === 'male') ? bmr + 5 : bmr - 161;
 
-    const targetSteps = Math.floor(weight * 100 + 3000);
-    const targetBurn = Math.floor(weight * 5);
-    const targetIntake = Math.floor(bmr * 1.2); // Sedentary maintenance
-
-    UI.targetSteps.innerText = targetSteps.toLocaleString();
-    UI.targetBurn.innerText = `${targetBurn} kcal`;
-    UI.targetIntake.innerText = `${targetIntake} kcal`;
+    UI.targetSteps.innerText = Math.floor(weight * 100 + 3000).toLocaleString();
+    UI.targetBurn.innerText = `${Math.floor(weight * 5)} kcal`;
+    UI.targetIntake.innerText = `${Math.floor(bmr * 1.2)} kcal`;
     
-    UI.mealAdvice.innerHTML = `<b>Öneri:</b> Kahvaltıda yulaf, öğlen ızgara tavuk, akşam sebze ağırlıklı beslen. Günlük ${targetIntake} kaloriyi aşmamaya çalış!`;
+    UI.mealAdvice.innerHTML = `Kahvaltıda yulaf, öğlen ızgara tavuk önerilir. Günlük kaloriyi aşmamaya çalış!`;
     UI.dailyPlanCard.classList.remove('hidden');
-    UI.dailyTask.innerText = "Plan Aktif!";
+    UI.dailyTask.innerText = "Plan Aktif";
 }
 
 function startReplay() {
@@ -233,7 +247,7 @@ function stopReplay() {
 function updateUserMarker(lat, lng) {
     if (userMarker) userMarker.setLatLng([lat, lng]);
     else {
-        const icon = L.divIcon({ className: 'custom-div-icon', html: `<div style="background:black;border:3px solid white;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;">${state.userName.charAt(0)}</div>`, iconSize: [40, 40], iconAnchor: [20, 20] });
+        const icon = L.divIcon({ className: 'custom-div-icon', html: `<div style="background:black;border:3px solid white;border-radius:50%;width:35px;height:35px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;">${state.userName.charAt(0)}</div>`, iconSize: [35, 35], iconAnchor: [17, 17] });
         userMarker = L.marker([lat, lng], { icon: icon }).addTo(map);
     }
 }
@@ -247,10 +261,11 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 function updateTimer() {
+    if (!state.startTime) return;
     const diff = Date.now() - state.startTime;
     const h = Math.floor(diff / 3600000), m = Math.floor((diff % 3600000) / 60000), s = Math.floor((diff % 60000) / 1000);
     UI.time.innerText = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    if (state.totalDistance > 10) {
+    if (state.totalDistance > 5) {
         const paceSecs = (diff / 1000) / (state.totalDistance / 1000);
         UI.pace.innerText = `${Math.floor(paceSecs / 60)}:${Math.floor(paceSecs % 60).toString().padStart(2, '0')}`;
     }
@@ -259,12 +274,12 @@ function updateTimer() {
 function addXP(amount) {
     state.xp += amount;
     const nextLevelXP = state.level * 500;
-    if (state.xp >= nextLevelXP) { state.xp -= nextLevelXP; state.level++; speak(`Tebrikler, seviye ${state.level} oldun!`); }
+    if (state.xp >= nextLevelXP) { state.xp -= nextLevelXP; state.level++; showToast("SEVİYE ATLADIN! 🎉"); speak(`Tebrikler, seviye ${state.level} oldun!`); }
     updateGamificationUI(); saveData();
 }
 
 function updateGamificationUI() { UI.lvl.innerText = state.level; UI.xpBar.style.width = `${(state.xp / (state.level * 500)) * 100}%`; }
-function updateProfileUI() { const initial = state.userName.charAt(0).toUpperCase(); UI.avatarNav.innerText = initial; UI.avatarDrawer.innerText = initial; UI.inputName.value = state.userName; }
+function updateProfileUI() { const initial = state.userName.charAt(0).toUpperCase(); UI.avatarNav.innerText = initial; UI.avatarDrawer.innerText = initial; }
 function saveRunToHistory() {
     const distKm = (state.totalDistance / 1000).toFixed(2); if (distKm < 0.01) return;
     state.history.unshift({ date: new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }), distance: distKm, time: UI.time.innerText });
