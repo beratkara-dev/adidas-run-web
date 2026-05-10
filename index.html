@@ -7,6 +7,16 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Outfit:wght@300;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase SDK Setup -->
+    <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
+      }
+    }
+    </script>
 </head>
 <body>
     <div id="app">
@@ -33,18 +43,15 @@
                 <div class="widget task-widget"><span class="label">DURUM</span><span id="daily-task">Hazır</span></div>
             </div>
 
-            <!-- AI Daily Plan Card (Improved) -->
+            <!-- AI Daily Plan Card -->
             <div id="daily-plan-card" class="plan-card glass-card hidden">
-                <div class="plan-header">
-                    <span>AI GÜNLÜK PROGRAMIN</span>
-                    <button id="btnClosePlan" class="btn-close-mini">&times;</button>
-                </div>
+                <div class="plan-header"><span>AI GÜNLÜK PROGRAMIN</span><button id="btnClosePlan" class="btn-close-mini">&times;</button></div>
                 <div class="plan-grid">
                     <div class="plan-item"><span class="p-label">HEDEF ADIM</span><span id="target-steps" class="p-value">---</span></div>
                     <div class="plan-item"><span class="p-label">YAKILACAK</span><span id="target-burn" class="p-value">--- kcal</span></div>
                     <div class="plan-item full"><span class="p-label">BESLENME (GÜNLÜK)</span><span id="target-intake" class="p-value">--- kcal</span></div>
                 </div>
-                <div id="meal-advice" class="meal-advice">Veriler bekleniyor...</div>
+                <div id="meal-advice" class="meal-advice">Yükleniyor...</div>
             </div>
 
             <div class="dashboard glass-card">
@@ -69,15 +76,16 @@
             </div>
         </div>
 
-        <!-- Replay & Modals -->
-        <div id="replay-overlay" class="replay-overlay hidden">
-            <div class="replay-content"><div class="loader"></div><p>REPLAY OYNATILIYOR</p><button id="btnStopReplay" class="btn-close-replay">DURDUR</button></div>
-        </div>
-        
-        <div id="history-modal" class="modal hidden">
-            <div class="modal-content glass-card">
-                <div class="modal-header"><h2>GEÇMİŞ</h2><button id="btnCloseHistory" class="btn-close">&times;</button></div>
-                <div id="history-list" class="history-list"></div>
+        <!-- Friend Profile Modal -->
+        <div id="friend-modal" class="modal hidden">
+            <div class="modal-content glass-card" style="text-align: center;">
+                <div class="avatar-lg" id="friend-avatar" style="background: #fff; color: #000;">M</div>
+                <h2 id="friend-name" style="margin-top: 10px;">Biri Koşuyor</h2>
+                <div class="plan-grid" style="margin-top: 20px;">
+                    <div class="plan-item"><span class="p-label">SEVİYE</span><span id="friend-lvl" class="p-value">LVL 1</span></div>
+                    <div class="plan-item"><span class="p-label">MESAFE</span><span id="friend-dist" class="p-value">0.0 KM</span></div>
+                </div>
+                <button id="btnCloseFriend" class="btn btn-secondary" style="margin-top: 20px; height: 40px;">KAPAT</button>
             </div>
         </div>
 
@@ -91,24 +99,19 @@
                 </div>
                 <div class="health-section">
                     <h4>SAĞLIK PROFİLİ</h4>
-                    <p style="font-size: 0.6rem; color: #a0a0a0; margin-bottom: 10px;">Plan oluşturmak için doldurun (opsiyonel)</p>
                     <div class="input-grid">
                         <input type="number" id="input-height" placeholder="Boy (cm)">
                         <input type="number" id="input-weight" placeholder="Kilo (kg)">
                         <input type="number" id="input-age" placeholder="Yaş">
                         <select id="input-gender"><option value="male">Erkek</option><option value="female">Kadın</option></select>
                     </div>
-                    <button id="btnCreatePlan" class="btn btn-primary btn-sm" style="height:40px; margin-top:10px; font-size: 0.8rem;">PROGRAM OLUŞTUR</button>
+                    <button id="btnCreatePlan" class="btn btn-primary btn-sm" style="height:40px; margin-top:10px;">PROGRAM OLUŞTUR</button>
                 </div>
-                <ul class="menu-list">
-                    <li class="menu-item active">Ana Sayfa</li>
-                    <li class="menu-item" onclick="alert('Yakında!')">Başarımlar</li>
-                    <li class="menu-item" onclick="location.reload()">Sıfırla/Yenile</li>
-                </ul>
+                <ul class="menu-list"><li class="menu-item active">Ana Sayfa</li><li class="menu-item" onclick="location.reload()">Yenile</li></ul>
             </div>
         </div>
     </div>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>
