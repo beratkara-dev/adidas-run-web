@@ -1,18 +1,21 @@
 // --- Configuration & State ---
 let state = {
     isTracking: false,
+    isReplaying: false,
     startTime: null,
-    totalDistance: 0, // meters
+    totalDistance: 0, 
     pathPoints: [],
     lastLocation: null,
     timerInterval: null,
     xp: parseInt(localStorage.getItem('run_xp')) || 0,
     level: parseInt(localStorage.getItem('run_lvl')) || 1,
     userName: localStorage.getItem('run_name') || 'Koşucu',
-    history: JSON.parse(localStorage.getItem('run_history')) || []
+    history: JSON.parse(localStorage.getItem('run_history')) || [],
+    lastMilestone: 0 // Track every 500m for voice
 };
 
 const UI = {
+    app: document.getElementById('app'),
     distance: document.getElementById('distance'),
     time: document.getElementById('time'),
     pace: document.getElementById('pace'),
@@ -24,7 +27,6 @@ const UI = {
     btnReset: document.getElementById('btnReset'),
     activeControls: document.getElementById('active-controls'),
     
-    // New UI Elements
     btnOpenDrawer: document.getElementById('btnOpenDrawer'),
     btnCloseDrawer: document.getElementById('btnCloseDrawer'),
     drawer: document.getElementById('drawer'),
@@ -38,30 +40,37 @@ const UI = {
     btnHistory: document.getElementById('btnHistory'),
     historyModal: document.getElementById('history-modal'),
     btnCloseHistory: document.getElementById('btnCloseHistory'),
-    historyList: document.getElementById('history-list')
+    historyList: document.getElementById('history-list'),
+
+    btnReplay: document.getElementById('btnReplay'),
+    replayOverlay: document.getElementById('replay-overlay'),
+    btnStopReplay: document.getElementById('btnStopReplay')
 };
 
 // --- Map Initialization ---
-const map = L.map('map', {
-    zoomControl: false,
-    center: [41.0082, 28.9784], // Default Istanbul
-    zoom: 15
-});
-
-// Using OpenStreetMap tiles (In CSS we apply a dark filter)
+const map = L.map('map', { zoomControl: false, center: [41.0082, 28.9784], zoom: 15 });
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 let polyline = L.polyline([], { color: '#e2ff00', weight: 8, opacity: 0.8 }).addTo(map);
+let replayPolyline = L.polyline([], { color: '#ffffff', weight: 10, opacity: 1 }).addTo(map);
 let userMarker = null;
 
-// --- Core Logic ---
+// --- Voice Coach ---
+function speak(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel(); // Stop current speech
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'tr-TR';
+    utterance.rate = 1.0;
+    window.speechSynthesis.speak(utterance);
+}
 
+// --- Core Logic ---
 function init() {
     updateGamificationUI();
     updateProfileUI();
     renderHistory();
     
-    // Initial Geolocation
     if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(position => {
             const { latitude, longitude } = position.coords;
@@ -70,55 +79,48 @@ function init() {
         });
     }
 
-    // Main Controls
     UI.btnStart.addEventListener('click', startTracking);
     UI.btnStop.addEventListener('click', stopTracking);
     UI.btnReset.addEventListener('click', resetTracking);
-
-    // Drawer Controls
     UI.btnOpenDrawer.addEventListener('click', () => UI.drawer.classList.add('active'));
     UI.btnCloseDrawer.addEventListener('click', () => UI.drawer.classList.remove('active'));
     UI.drawerOverlay.addEventListener('click', () => UI.drawer.classList.remove('active'));
     
-    // Profile Edit
     UI.btnSaveName.addEventListener('click', () => {
         const newName = UI.inputName.value.trim();
         if (newName) {
             state.userName = newName;
             updateProfileUI();
             saveData();
-            alert("Profil güncellendi!");
+            speak(`Profil güncellendi. Yeni ismin ${newName}`);
         }
     });
 
-    // History Controls
     UI.btnHistory.addEventListener('click', () => {
         renderHistory();
         UI.historyModal.classList.remove('hidden');
     });
     UI.btnCloseHistory.addEventListener('click', () => UI.historyModal.classList.add('hidden'));
+
+    UI.btnReplay.addEventListener('click', startReplay);
+    UI.btnStopReplay.addEventListener('click', stopReplay);
 }
 
 function startTracking() {
-    if (!("geolocation" in navigator)) {
-        alert("Tarayıcınız konum özelliğini desteklemiyor.");
-        return;
-    }
-
+    if (!("geolocation" in navigator)) return;
     state.isTracking = true;
     state.startTime = Date.now();
+    state.lastMilestone = 0;
     
     UI.btnStart.classList.add('hidden');
     UI.activeControls.classList.remove('hidden');
     UI.btnReset.classList.add('hidden');
+    UI.btnReplay.classList.add('hidden');
 
     state.timerInterval = setInterval(updateTimer, 1000);
-
-    state.watchId = navigator.geolocation.watchPosition(
-        onLocationUpdate,
-        err => console.error(err),
-        { enableHighAccuracy: true, distanceFilter: 1 }
-    );
+    state.watchId = navigator.geolocation.watchPosition(onLocationUpdate, null, { enableHighAccuracy: true });
+    
+    speak(`Koşu başlatıldı. Başarılar ${state.userName}!`);
 }
 
 function stopTracking() {
@@ -128,10 +130,11 @@ function stopTracking() {
 
     UI.btnStop.classList.add('hidden');
     UI.btnReset.classList.remove('hidden');
+    if (state.pathPoints.length > 2) UI.btnReplay.classList.remove('hidden');
     
     saveRunToHistory();
     saveData();
-    checkBadges();
+    speak(`Koşu tamamlandı. Toplam ${ (state.totalDistance / 1000).toFixed(2) } kilometre koştun. Harika bir iş çıkardın!`);
 }
 
 function resetTracking() {
@@ -146,40 +149,84 @@ function resetTracking() {
     UI.calories.innerText = "0";
 
     polyline.setLatLngs([]);
+    replayPolyline.setLatLngs([]);
     UI.btnStart.classList.remove('hidden');
     UI.activeControls.classList.add('hidden');
     UI.btnStop.classList.remove('hidden');
+    UI.btnReplay.classList.add('hidden');
 }
 
 function onLocationUpdate(position) {
     const { latitude, longitude, accuracy } = position.coords;
-    if (accuracy > 30) return; // Ignore low accuracy
+    if (accuracy > 35) return;
 
     const currentLatLng = [latitude, longitude];
 
     if (state.lastLocation) {
-        const dist = calculateDistance(
-            state.lastLocation[0], state.lastLocation[1],
-            latitude, longitude
-        );
+        const dist = calculateDistance(state.lastLocation[0], state.lastLocation[1], latitude, longitude);
         state.totalDistance += dist;
-        addXP(Math.floor(dist / 10)); // 1 XP every 10 meters
+        addXP(Math.floor(dist / 5)); // 1 XP every 5 meters
+        
+        // Voice milestone every 500m
+        const currentKm = state.totalDistance / 1000;
+        if (Math.floor(state.totalDistance / 500) > state.lastMilestone) {
+            state.lastMilestone = Math.floor(state.totalDistance / 500);
+            speak(`${state.lastMilestone * 0.5} kilometre tamamlandı.`);
+        }
     }
 
     state.lastLocation = currentLatLng;
     state.pathPoints.push(currentLatLng);
     
-    // Update UI
-    const distKm = state.totalDistance / 1000;
-    UI.distance.innerText = distKm.toFixed(2);
-    UI.calories.innerText = Math.floor(distKm * 65);
+    UI.distance.innerText = (state.totalDistance / 1000).toFixed(2);
+    UI.calories.innerText = Math.floor((state.totalDistance / 1000) * 65);
     
-    // Update Map
     polyline.setLatLngs(state.pathPoints);
     updateUserMarker(latitude, longitude);
-    map.panTo(currentLatLng);
+    if (!state.isReplaying) map.panTo(currentLatLng);
 }
 
+// --- Cinematic Replay ---
+function startReplay() {
+    if (state.pathPoints.length < 2) return;
+    state.isReplaying = true;
+    UI.app.classList.add('replay-mode');
+    UI.replayOverlay.classList.remove('hidden');
+    
+    replayPolyline.setLatLngs([]);
+    map.setView(state.pathPoints[0], 18);
+    
+    speak("Sinematik rota tekrarı başlatılıyor.");
+
+    let i = 0;
+    const replayInterval = setInterval(() => {
+        if (i >= state.pathPoints.length || !state.isReplaying) {
+            clearInterval(replayInterval);
+            if (state.isReplaying) setTimeout(stopReplay, 2000);
+            return;
+        }
+        
+        const point = state.pathPoints[i];
+        replayPolyline.addLatLng(point);
+        map.panTo(point, { animate: true, duration: 0.5 });
+        updateUserMarker(point[0], point[1]);
+        i++;
+    }, 400);
+
+    state.replayIntervalId = replayInterval;
+}
+
+function stopReplay() {
+    state.isReplaying = false;
+    clearInterval(state.replayIntervalId);
+    UI.app.classList.remove('replay-mode');
+    UI.replayOverlay.classList.add('hidden');
+    replayPolyline.setLatLngs([]);
+    
+    if (state.lastLocation) map.setView(state.lastLocation, 17);
+}
+
+// --- Helpers ---
 function updateUserMarker(lat, lng) {
     if (userMarker) {
         userMarker.setLatLng([lat, lng]);
@@ -194,37 +241,21 @@ function updateUserMarker(lat, lng) {
     }
 }
 
-// --- Utils ---
-
 function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3; // meters
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lon2-lon1) * Math.PI/180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c;
+    const R = 6371e3;
+    const φ1 = lat1 * Math.PI/180, φ2 = lat2 * Math.PI/180;
+    const Δφ = (lat2-lat1) * Math.PI/180, Δλ = (lon2-lon1) * Math.PI/180;
+    const a = Math.sin(Δφ/2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) ** 2;
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
 }
 
 function updateTimer() {
     const diff = Date.now() - state.startTime;
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    
+    const h = Math.floor(diff / 3600000), m = Math.floor((diff % 3600000) / 60000), s = Math.floor((diff % 60000) / 1000);
     UI.time.innerText = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    
     if (state.totalDistance > 10) {
-        const totalSeconds = diff / 1000;
-        const paceSecs = totalSeconds / (state.totalDistance / 1000);
-        const pm = Math.floor(paceSecs / 60);
-        const ps = Math.floor(paceSecs % 60);
-        UI.pace.innerText = `${pm}:${ps.toString().padStart(2, '0')}`;
+        const paceSecs = (diff / 1000) / (state.totalDistance / 1000);
+        UI.pace.innerText = `${Math.floor(paceSecs / 60)}:${Math.floor(paceSecs % 60).toString().padStart(2, '0')}`;
     }
 }
 
@@ -234,7 +265,7 @@ function addXP(amount) {
     if (state.xp >= nextLevelXP) {
         state.xp -= nextLevelXP;
         state.level++;
-        alert(`SEVİYE ATLADIN! Yeni Seviye: ${state.level}`);
+        speak(`Tebrikler Berat, seviye atladın! Yeni seviyen ${state.level}`);
     }
     updateGamificationUI();
     saveData();
@@ -242,71 +273,36 @@ function addXP(amount) {
 
 function updateGamificationUI() {
     UI.lvl.innerText = state.level;
-    const progress = (state.xp / (state.level * 500)) * 100;
-    UI.xpBar.style.width = `${progress}%`;
+    UI.xpBar.style.width = `${(state.xp / (state.level * 500)) * 100}%`;
 }
 
 function updateProfileUI() {
     const initial = state.userName.charAt(0).toUpperCase();
-    UI.avatarNav.innerText = initial;
-    UI.avatarDrawer.innerText = initial;
-    UI.inputName.value = state.userName;
-    UI.totalRuns.innerText = state.history.length;
-    
-    // Update map marker if exists
-    if (userMarker) updateUserMarker(...userMarker.getLatLng());
+    UI.avatarNav.innerText = initial; UI.avatarDrawer.innerText = initial;
+    UI.inputName.value = state.userName; UI.totalRuns.innerText = state.history.length;
 }
 
 function saveRunToHistory() {
-    const distanceKm = state.totalDistance / 1000;
-    if (distanceKm < 0.01) return;
-
-    const run = {
-        id: Date.now(),
-        date: new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
-        distance: distanceKm.toFixed(2),
-        time: UI.time.innerText,
-        calories: UI.calories.innerText
-    };
-
+    const distKm = (state.totalDistance / 1000).toFixed(2);
+    if (distKm < 0.01) return;
+    const run = { date: new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }), distance: distKm, time: UI.time.innerText };
     state.history.unshift(run);
     if (state.history.length > 5) state.history.pop();
-    
     localStorage.setItem('run_history', JSON.stringify(state.history));
-    renderHistory();
 }
 
 function renderHistory() {
-    if (state.history.length === 0) {
-        UI.historyList.innerHTML = '<p style="text-align:center; color:gray; padding:20px;">Henüz koşu geçmişi yok.</p>';
-        return;
-    }
-
+    if (state.history.length === 0) { UI.historyList.innerHTML = '<p style="text-align:center;color:gray;padding:20px;">Henüz geçmiş yok.</p>'; return; }
     UI.historyList.innerHTML = state.history.map(run => `
         <div class="history-item">
-            <div class="history-left">
-                <div class="history-date">${run.date}</div>
-                <div class="history-data">${run.distance} KM</div>
-            </div>
-            <div class="history-right">
-                <div class="history-data">${run.time}</div>
-            </div>
+            <div><div class="history-date">${run.date}</div><div class="history-data">${run.distance} KM</div></div>
+            <div class="history-data">${run.time}</div>
         </div>
     `).join('');
 }
 
 function saveData() {
-    localStorage.setItem('run_xp', state.xp);
-    localStorage.setItem('run_lvl', state.level);
-    localStorage.setItem('run_name', state.userName);
-}
-
-function checkBadges() {
-    // Simple logic for demonstration
-    if (state.totalDistance > 100 && !localStorage.getItem('badge_first')) {
-        alert("ROZET KAZANDIN: İlk Adım!");
-        localStorage.setItem('badge_first', 'true');
-    }
+    localStorage.setItem('run_xp', state.xp); localStorage.setItem('run_lvl', state.level); localStorage.setItem('run_name', state.userName);
 }
 
 init();

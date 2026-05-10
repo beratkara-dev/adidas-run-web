@@ -32,7 +32,9 @@
         </header>
 
         <!-- Map Background -->
-        <div id="map"></div>
+        <div id="map-container">
+            <div id="map"></div>
+        </div>
 
         <!-- Floating UI Panels -->
         <div class="ui-overlay">
@@ -76,7 +78,19 @@
                         <button id="btnReset" class="btn btn-secondary hidden">YENİ KOŞU</button>
                     </div>
                 </div>
-                <button id="btnHistory" class="btn-text">GEÇMİŞ KOŞULARI GÖR</button>
+                <div class="secondary-controls">
+                    <button id="btnHistory" class="btn-text">GEÇMİŞ</button>
+                    <button id="btnReplay" class="btn-text hidden">ROTAYI TEKRAR İZLE 🎥</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Replay Overlay -->
+        <div id="replay-overlay" class="replay-overlay hidden">
+            <div class="replay-content">
+                <div class="loader"></div>
+                <p>SİNEMATİK ROTA TEKRARI OYNATILIYOR...</p>
+                <button id="btnStopReplay" class="btn-close-replay">DURDUR</button>
             </div>
         </div>
 
