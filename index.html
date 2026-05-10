@@ -4,15 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Adidas Run Web - Her Adımda Güç</title>
-    <!-- Leaflet Map CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Google Fonts: Inter & Outfit -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Outfit:wght@300;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="app">
-        <!-- Top Navigation -->
         <header class="glass-header">
             <div class="brand">
                 <svg viewBox="0 0 24 24" class="adidas-logo">
@@ -22,119 +19,85 @@
             </div>
             <div class="user-stats">
                 <div class="level-badge">LVL <span id="lvl">1</span></div>
-                <div class="xp-bar-container">
-                    <div id="xp-progress" class="xp-progress"></div>
-                </div>
-                <button id="btnOpenDrawer" class="btn-icon">
-                    <div class="avatar-sm" id="avatar-nav">K</div>
-                </button>
+                <div class="xp-bar-container"><div id="xp-progress" class="xp-progress"></div></div>
+                <button id="btnOpenDrawer" class="btn-icon"><div class="avatar-sm" id="avatar-nav">K</div></button>
             </div>
         </header>
 
-        <!-- Map Background -->
-        <div id="map-container">
-            <div id="map"></div>
-        </div>
+        <div id="map-container"><div id="map"></div></div>
 
-        <!-- Floating UI Panels -->
         <div class="ui-overlay">
-            <!-- Weather & Daily Task (Top Right) -->
             <div class="top-widgets">
-                <div class="widget weather-widget">
-                    <span class="icon">☀️</span>
-                    <span id="weather-text">24°C Koşu için ideal</span>
-                </div>
-                <div class="widget task-widget">
-                    <span class="label">GÜNÜN GÖREVİ</span>
-                    <span id="daily-task">1.0 KM Koş</span>
-                </div>
+                <div class="widget weather-widget"><span>☀️</span><span id="weather-text">24°C Koşu İdeal</span></div>
+                <div class="widget task-widget"><span class="label">DURUM</span><span id="daily-task">Profil Bekleniyor</span></div>
             </div>
 
-            <!-- Bottom Dashboard -->
+            <!-- AI Daily Plan Card -->
+            <div id="daily-plan-card" class="plan-card glass-card hidden">
+                <div class="plan-header"><span>AI GÜNLÜK PROGRAMIN</span></div>
+                <div class="plan-grid">
+                    <div class="plan-item"><span class="p-label">HEDEF ADIM</span><span id="target-steps" class="p-value">---</span></div>
+                    <div class="plan-item"><span class="p-label">YAKILACAK</span><span id="target-burn" class="p-value">--- kcal</span></div>
+                    <div class="plan-item full"><span class="p-label">BESLENME (GÜNLÜK BÜTÇE)</span><span id="target-intake" class="p-value">--- kcal</span></div>
+                </div>
+                <div id="meal-advice" class="meal-advice">Yükleniyor...</div>
+            </div>
+
             <div class="dashboard glass-card">
                 <div class="stats-grid">
-                    <div class="stat-item">
-                        <span class="stat-value" id="distance">0.00</span>
-                        <span class="stat-label">MESAFE (KM)</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-value" id="time">00:00:00</span>
-                        <span class="stat-label">SÜRE</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-value" id="steps">0</span>
-                        <span class="stat-label">ADIM</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-value" id="calories">0</span>
-                        <span class="stat-label">KALORİ (KCAL)</span>
-                    </div>
-                    <div class="stat-item full-width">
-                        <span class="stat-value" id="pace">0:00</span>
-                        <span class="stat-label">TEMPO (DK/KM)</span>
-                    </div>
+                    <div class="stat-item"><span class="stat-value" id="distance">0.00</span><span class="stat-label">KM</span></div>
+                    <div class="stat-item"><span class="stat-value" id="time">00:00:00</span><span class="stat-label">SÜRE</span></div>
+                    <div class="stat-item"><span class="stat-value" id="steps">0</span><span class="stat-label">ADIM</span></div>
+                    <div class="stat-item"><span class="stat-value" id="calories">0</span><span class="stat-label">KCAL</span></div>
+                    <div class="stat-item full-width"><span class="stat-value" id="pace">0:00</span><span class="stat-label">TEMPO (DK/KM)</span></div>
                 </div>
-
                 <div class="controls">
-                    <button id="btnStart" class="btn btn-primary">KOŞUYU BAŞLAT</button>
+                    <button id="btnStart" class="btn btn-primary">BAŞLAT</button>
                     <div id="active-controls" class="hidden">
                         <button id="btnStop" class="btn btn-danger">DURDUR</button>
-                        <button id="btnReset" class="btn btn-secondary hidden">YENİ KOŞU</button>
+                        <button id="btnReset" class="btn btn-secondary hidden">YENİ</button>
                     </div>
                 </div>
                 <div class="secondary-controls">
                     <button id="btnHistory" class="btn-text">GEÇMİŞ</button>
-                    <button id="btnReplay" class="btn-text hidden">ROTAYI TEKRAR İZLE 🎥</button>
+                    <button id="btnReplay" class="btn-text hidden">TEKRAR 🎥</button>
                 </div>
             </div>
         </div>
 
-        <!-- Replay Overlay -->
+        <!-- Replay & Modals -->
         <div id="replay-overlay" class="replay-overlay hidden">
-            <div class="replay-content">
-                <div class="loader"></div>
-                <p>SİNEMATİK ROTA TEKRARI OYNATILIYOR...</p>
-                <button id="btnStopReplay" class="btn-close-replay">DURDUR</button>
-            </div>
+            <div class="replay-content"><div class="loader"></div><p>REPLAY...</p><button id="btnStopReplay" class="btn-close-replay">DURDUR</button></div>
         </div>
-
-        <!-- History Modal -->
         <div id="history-modal" class="modal hidden">
             <div class="modal-content glass-card">
-                <div class="modal-header">
-                    <h2>KOŞU GEÇMİŞİ</h2>
-                    <button id="btnCloseHistory" class="btn-close">&times;</button>
-                </div>
-                <div id="history-list" class="history-list">
-                    <!-- History items will be injected here -->
-                </div>
+                <div class="modal-header"><h2>GEÇMİŞ</h2><button id="btnCloseHistory" class="btn-close">&times;</button></div>
+                <div id="history-list" class="history-list"></div>
             </div>
         </div>
 
-        <!-- Profile Drawer -->
         <div id="drawer" class="drawer">
             <div class="drawer-overlay"></div>
             <div class="drawer-content">
                 <button id="btnCloseDrawer" class="btn-close-drawer">&times;</button>
                 <div class="profile-header">
                     <div class="avatar-lg" id="avatar-drawer">K</div>
-                    <div class="name-edit-group">
-                        <input type="text" id="input-name" placeholder="İsminiz" maxlength="15">
-                        <button id="btnSaveName" class="btn-save">KAYDET</button>
-                    </div>
-                    <p class="stats-summary">Toplam <span id="total-runs">0</span> Koşu</p>
+                    <input type="text" id="input-name" placeholder="İsim">
                 </div>
-                <ul class="menu-list">
-                    <li class="menu-item active">Ana Sayfa</li>
-                    <li class="menu-item">Rozetler</li>
-                    <li class="menu-item">İstatistikler</li>
-                    <li class="menu-item">Ayarlar</li>
-                </ul>
+                <div class="health-section">
+                    <h4>SAĞLIK VERİLERİ</h4>
+                    <div class="input-grid">
+                        <input type="number" id="input-height" placeholder="Boy (cm)">
+                        <input type="number" id="input-weight" placeholder="Kilo (kg)">
+                        <input type="number" id="input-age" placeholder="Yaş">
+                        <select id="input-gender"><option value="male">Erkek</option><option value="female">Kadın</option></select>
+                    </div>
+                    <button id="btnCreatePlan" class="btn btn-primary btn-sm" style="height:40px; margin-top:10px;">PLAN OLUŞTUR</button>
+                </div>
+                <ul class="menu-list"><li class="menu-item active">Dashboard</li><li class="menu-item">Ayarlar</li></ul>
             </div>
         </div>
     </div>
-
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="app.js"></script>
 </body>

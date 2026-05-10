@@ -13,7 +13,8 @@ let state = {
     level: parseInt(localStorage.getItem('run_lvl')) || 1,
     userName: localStorage.getItem('run_name') || 'Koşucu',
     history: JSON.parse(localStorage.getItem('run_history')) || [],
-    lastMilestone: 0 // Track every 500m for voice
+    healthData: JSON.parse(localStorage.getItem('run_health')) || null,
+    lastMilestone: 0
 };
 
 const UI = {
@@ -35,10 +36,8 @@ const UI = {
     drawer: document.getElementById('drawer'),
     drawerOverlay: document.querySelector('.drawer-overlay'),
     inputName: document.getElementById('input-name'),
-    btnSaveName: document.getElementById('btnSaveName'),
     avatarNav: document.getElementById('avatar-nav'),
     avatarDrawer: document.getElementById('avatar-drawer'),
-    totalRuns: document.getElementById('total-runs'),
     
     btnHistory: document.getElementById('btnHistory'),
     historyModal: document.getElementById('history-modal'),
@@ -47,7 +46,20 @@ const UI = {
 
     btnReplay: document.getElementById('btnReplay'),
     replayOverlay: document.getElementById('replay-overlay'),
-    btnStopReplay: document.getElementById('btnStopReplay')
+    btnStopReplay: document.getElementById('btnStopReplay'),
+
+    // Health UI
+    inputHeight: document.getElementById('input-height'),
+    inputWeight: document.getElementById('input-weight'),
+    inputAge: document.getElementById('input-age'),
+    inputGender: document.getElementById('input-gender'),
+    btnCreatePlan: document.getElementById('btnCreatePlan'),
+    dailyPlanCard: document.getElementById('daily-plan-card'),
+    targetSteps: document.getElementById('target-steps'),
+    targetBurn: document.getElementById('target-burn'),
+    targetIntake: document.getElementById('target-intake'),
+    mealAdvice: document.getElementById('meal-advice'),
+    dailyTask: document.getElementById('daily-task')
 };
 
 // --- Map Initialization ---
@@ -58,13 +70,11 @@ let polyline = L.polyline([], { color: '#e2ff00', weight: 8, opacity: 0.8 }).add
 let replayPolyline = L.polyline([], { color: '#ffffff', weight: 10, opacity: 1 }).addTo(map);
 let userMarker = null;
 
-// --- Voice Coach ---
 function speak(text) {
     if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel(); // Stop current speech
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'tr-TR';
-    utterance.rate = 1.0;
     window.speechSynthesis.speak(utterance);
 }
 
@@ -73,7 +83,8 @@ function init() {
     updateGamificationUI();
     updateProfileUI();
     renderHistory();
-    
+    if (state.healthData) renderDailyPlan();
+
     if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(position => {
             const { latitude, longitude } = position.coords;
@@ -89,20 +100,9 @@ function init() {
     UI.btnCloseDrawer.addEventListener('click', () => UI.drawer.classList.remove('active'));
     UI.drawerOverlay.addEventListener('click', () => UI.drawer.classList.remove('active'));
     
-    UI.btnSaveName.addEventListener('click', () => {
-        const newName = UI.inputName.value.trim();
-        if (newName) {
-            state.userName = newName;
-            updateProfileUI();
-            saveData();
-            speak(`Profil güncellendi. Yeni ismin ${newName}`);
-        }
-    });
+    UI.btnCreatePlan.addEventListener('click', createDailyPlan);
 
-    UI.btnHistory.addEventListener('click', () => {
-        renderHistory();
-        UI.historyModal.classList.remove('hidden');
-    });
+    UI.btnHistory.addEventListener('click', () => { renderHistory(); UI.historyModal.classList.remove('hidden'); });
     UI.btnCloseHistory.addEventListener('click', () => UI.historyModal.classList.add('hidden'));
 
     UI.btnReplay.addEventListener('click', startReplay);
@@ -111,31 +111,17 @@ function init() {
 
 function startTracking() {
     if (!("geolocation" in navigator)) return;
-    
-    // Request Motion Permission for iOS
     if (typeof DeviceMotionEvent.requestPermission === 'function') {
-        DeviceMotionEvent.requestPermission().then(permissionState => {
-            if (permissionState === 'granted') {
-                window.addEventListener('devicemotion', onMotionUpdate);
-            }
-        });
-    } else {
-        window.addEventListener('devicemotion', onMotionUpdate);
-    }
+        DeviceMotionEvent.requestPermission().then(p => { if (p === 'granted') window.addEventListener('devicemotion', onMotionUpdate); });
+    } else { window.addEventListener('devicemotion', onMotionUpdate); }
 
     state.isTracking = true;
     state.startTime = Date.now();
-    state.lastMilestone = 0;
-    
     UI.btnStart.classList.add('hidden');
     UI.activeControls.classList.remove('hidden');
-    UI.btnReset.classList.add('hidden');
-    UI.btnReplay.classList.add('hidden');
-
     state.timerInterval = setInterval(updateTimer, 1000);
     state.watchId = navigator.geolocation.watchPosition(onLocationUpdate, null, { enableHighAccuracy: true });
-    
-    speak(`Koşu başlatıldı. Başarılar ${state.userName}!`);
+    speak(`Koşu başladı. Başarılar ${state.userName}!`);
 }
 
 function stopTracking() {
@@ -143,144 +129,111 @@ function stopTracking() {
     clearInterval(state.timerInterval);
     navigator.geolocation.clearWatch(state.watchId);
     window.removeEventListener('devicemotion', onMotionUpdate);
-
     UI.btnStop.classList.add('hidden');
     UI.btnReset.classList.remove('hidden');
     if (state.pathPoints.length > 2) UI.btnReplay.classList.remove('hidden');
-    
     saveRunToHistory();
     saveData();
-    speak(`Koşu tamamlandı. Toplam ${ (state.totalDistance / 1000).toFixed(2) } kilometre koştun. Harika bir iş çıkardın!`);
+    speak(`Koşu bitti. ${(state.totalDistance / 1000).toFixed(2)} kilometre koştun.`);
 }
 
 function resetTracking() {
-    state.totalDistance = 0;
-    state.steps = 0;
-    state.pathPoints = [];
-    state.lastLocation = null;
-    state.startTime = null;
-
-    UI.distance.innerText = "0.00";
-    UI.time.innerText = "00:00:00";
-    UI.steps.innerText = "0";
-    UI.pace.innerText = "0:00";
-    UI.calories.innerText = "0";
-
-    polyline.setLatLngs([]);
-    replayPolyline.setLatLngs([]);
-    UI.btnStart.classList.remove('hidden');
-    UI.activeControls.classList.add('hidden');
-    UI.btnStop.classList.remove('hidden');
-    UI.btnReplay.classList.add('hidden');
+    state.totalDistance = 0; state.steps = 0; state.pathPoints = []; state.lastLocation = null; state.startTime = null;
+    UI.distance.innerText = "0.00"; UI.time.innerText = "00:00:00"; UI.steps.innerText = "0"; UI.pace.innerText = "0:00"; UI.calories.innerText = "0";
+    polyline.setLatLngs([]); replayPolyline.setLatLngs([]);
+    UI.btnStart.classList.remove('hidden'); UI.activeControls.classList.add('hidden'); UI.btnReplay.classList.add('hidden');
 }
 
 function onLocationUpdate(position) {
     const { latitude, longitude, accuracy } = position.coords;
-    if (accuracy > 50) return; // Slightly relaxed for indoor/shaky GPS
-
+    if (accuracy > 50) return;
     const currentLatLng = [latitude, longitude];
-
     if (state.lastLocation) {
         const dist = calculateDistance(state.lastLocation[0], state.lastLocation[1], latitude, longitude);
-        // Minimum move threshold to avoid GPS "jumping" at home
-        if (dist > 2) {
-            state.totalDistance += dist;
-            addXP(Math.floor(dist / 2)); 
-        }
-        
-        const currentKm = state.totalDistance / 1000;
-        if (Math.floor(state.totalDistance / 500) > state.lastMilestone) {
-            state.lastMilestone = Math.floor(state.totalDistance / 500);
-            speak(`${state.lastMilestone * 0.5} kilometre tamamlandı.`);
-        }
+        if (dist > 2) { state.totalDistance += dist; addXP(Math.floor(dist / 2)); }
     }
-
     state.lastLocation = currentLatLng;
     state.pathPoints.push(currentLatLng);
-    
     UI.distance.innerText = (state.totalDistance / 1000).toFixed(2);
     UI.calories.innerText = Math.floor((state.totalDistance / 1000) * 65);
-    
     polyline.setLatLngs(state.pathPoints);
     updateUserMarker(latitude, longitude);
     if (!state.isReplaying) map.panTo(currentLatLng);
 }
 
-// --- Step Counting ---
 function onMotionUpdate(event) {
     if (!state.isTracking) return;
-    
-    const acc = event.accelerationIncludingGravity;
-    if (!acc) return;
-
-    // Calculate total acceleration magnitude
+    const acc = event.accelerationIncludingGravity; if (!acc) return;
     const magnitude = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
-    
-    // Simple step detection threshold (tuned for walking/running)
-    const threshold = 12.5; 
     const now = Date.now();
-    
-    if (magnitude > threshold && (now - state.lastStepTime) > 300) {
-        state.steps++;
-        state.lastStepTime = now;
-        UI.steps.innerText = state.steps;
-        
-        // Every step gives a tiny bit of XP if at home
-        if (state.totalDistance < 10) addXP(0.1); 
+    if (magnitude > 12.5 && (now - state.lastStepTime) > 300) {
+        state.steps++; state.lastStepTime = now; UI.steps.innerText = state.steps;
+        if (state.totalDistance < 10) addXP(0.2); 
     }
 }
 
-// --- Cinematic Replay ---
+// --- AI Plan & Health ---
+function createDailyPlan() {
+    const h = parseFloat(UI.inputHeight.value);
+    const w = parseFloat(UI.inputWeight.value);
+    const a = parseInt(UI.inputAge.value);
+    const g = UI.inputGender.value;
+
+    if (!h || !w || !a) { alert("Lütfen tüm sağlık verilerini girin!"); return; }
+
+    state.healthData = { height: h, weight: w, age: a, gender: g };
+    localStorage.setItem('run_health', JSON.stringify(state.healthData));
+    
+    renderDailyPlan();
+    UI.drawer.classList.remove('active');
+    speak("Harika! Senin için özel bir günlük sağlık planı oluşturdum. Dashboard'dan inceleyebilirsin.");
+}
+
+function renderDailyPlan() {
+    const { height, weight, age, gender } = state.healthData;
+    
+    // BMR Calculation (Mifflin-St Jeor)
+    let bmr = (10 * weight) + (6.25 * height) - (5 * age);
+    bmr = (gender === 'male') ? bmr + 5 : bmr - 161;
+
+    const targetSteps = Math.floor(weight * 100 + 3000);
+    const targetBurn = Math.floor(weight * 5);
+    const targetIntake = Math.floor(bmr * 1.2); // Sedentary maintenance
+
+    UI.targetSteps.innerText = targetSteps.toLocaleString();
+    UI.targetBurn.innerText = `${targetBurn} kcal`;
+    UI.targetIntake.innerText = `${targetIntake} kcal`;
+    
+    UI.mealAdvice.innerHTML = `<b>Öneri:</b> Kahvaltıda yulaf, öğlen ızgara tavuk, akşam sebze ağırlıklı beslen. Günlük ${targetIntake} kaloriyi aşmamaya çalış!`;
+    UI.dailyPlanCard.classList.remove('hidden');
+    UI.dailyTask.innerText = "Plan Aktif!";
+}
+
 function startReplay() {
     if (state.pathPoints.length < 2) return;
     state.isReplaying = true;
-    UI.app.classList.add('replay-mode');
-    UI.replayOverlay.classList.remove('hidden');
-    
-    replayPolyline.setLatLngs([]);
-    map.setView(state.pathPoints[0], 18);
-    
-    speak("Sinematik rota tekrarı başlatılıyor.");
-
+    UI.app.classList.add('replay-mode'); UI.replayOverlay.classList.remove('hidden');
+    replayPolyline.setLatLngs([]); map.setView(state.pathPoints[0], 18);
     let i = 0;
-    const replayInterval = setInterval(() => {
-        if (i >= state.pathPoints.length || !state.isReplaying) {
-            clearInterval(replayInterval);
-            if (state.isReplaying) setTimeout(stopReplay, 2000);
-            return;
-        }
-        
-        const point = state.pathPoints[i];
-        replayPolyline.addLatLng(point);
-        map.panTo(point, { animate: true, duration: 0.5 });
-        updateUserMarker(point[0], point[1]);
+    state.replayIntervalId = setInterval(() => {
+        if (i >= state.pathPoints.length || !state.isReplaying) { stopReplay(); return; }
+        replayPolyline.addLatLng(state.pathPoints[i]);
+        map.panTo(state.pathPoints[i], { animate: true, duration: 0.5 });
+        updateUserMarker(state.pathPoints[i][0], state.pathPoints[i][1]);
         i++;
     }, 400);
-
-    state.replayIntervalId = replayInterval;
 }
 
 function stopReplay() {
-    state.isReplaying = false;
-    clearInterval(state.replayIntervalId);
-    UI.app.classList.remove('replay-mode');
-    UI.replayOverlay.classList.add('hidden');
-    replayPolyline.setLatLngs([]);
-    
+    state.isReplaying = false; clearInterval(state.replayIntervalId);
+    UI.app.classList.remove('replay-mode'); UI.replayOverlay.classList.add('hidden');
     if (state.lastLocation) map.setView(state.lastLocation, 17);
 }
 
-// --- Helpers ---
 function updateUserMarker(lat, lng) {
-    if (userMarker) {
-        userMarker.setLatLng([lat, lng]);
-    } else {
-        const icon = L.divIcon({
-            className: 'custom-div-icon',
-            html: `<div style="background: black; border: 3px solid white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-family: sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.5);">${state.userName.charAt(0)}</div>`,
-            iconSize: [40, 40],
-            iconAnchor: [20, 20]
-        });
+    if (userMarker) userMarker.setLatLng([lat, lng]);
+    else {
+        const icon = L.divIcon({ className: 'custom-div-icon', html: `<div style="background:black;border:3px solid white;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;">${state.userName.charAt(0)}</div>`, iconSize: [40, 40], iconAnchor: [20, 20] });
         userMarker = L.marker([lat, lng], { icon: icon }).addTo(map);
     }
 }
@@ -306,47 +259,23 @@ function updateTimer() {
 function addXP(amount) {
     state.xp += amount;
     const nextLevelXP = state.level * 500;
-    if (state.xp >= nextLevelXP) {
-        state.xp -= nextLevelXP;
-        state.level++;
-        speak(`Tebrikler Berat, seviye atladın! Yeni seviyen ${state.level}`);
-    }
-    updateGamificationUI();
-    saveData();
+    if (state.xp >= nextLevelXP) { state.xp -= nextLevelXP; state.level++; speak(`Tebrikler, seviye ${state.level} oldun!`); }
+    updateGamificationUI(); saveData();
 }
 
-function updateGamificationUI() {
-    UI.lvl.innerText = state.level;
-    UI.xpBar.style.width = `${(state.xp / (state.level * 500)) * 100}%`;
-}
-
-function updateProfileUI() {
-    const initial = state.userName.charAt(0).toUpperCase();
-    UI.avatarNav.innerText = initial; UI.avatarDrawer.innerText = initial;
-    UI.inputName.value = state.userName; UI.totalRuns.innerText = state.history.length;
-}
-
+function updateGamificationUI() { UI.lvl.innerText = state.level; UI.xpBar.style.width = `${(state.xp / (state.level * 500)) * 100}%`; }
+function updateProfileUI() { const initial = state.userName.charAt(0).toUpperCase(); UI.avatarNav.innerText = initial; UI.avatarDrawer.innerText = initial; UI.inputName.value = state.userName; }
 function saveRunToHistory() {
-    const distKm = (state.totalDistance / 1000).toFixed(2);
-    if (distKm < 0.01) return;
-    const run = { date: new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }), distance: distKm, time: UI.time.innerText };
-    state.history.unshift(run);
-    if (state.history.length > 5) state.history.pop();
-    localStorage.setItem('run_history', JSON.stringify(state.history));
+    const distKm = (state.totalDistance / 1000).toFixed(2); if (distKm < 0.01) return;
+    state.history.unshift({ date: new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }), distance: distKm, time: UI.time.innerText });
+    if (state.history.length > 5) state.history.pop(); localStorage.setItem('run_history', JSON.stringify(state.history));
 }
 
 function renderHistory() {
-    if (state.history.length === 0) { UI.historyList.innerHTML = '<p style="text-align:center;color:gray;padding:20px;">Henüz geçmiş yok.</p>'; return; }
-    UI.historyList.innerHTML = state.history.map(run => `
-        <div class="history-item">
-            <div><div class="history-date">${run.date}</div><div class="history-data">${run.distance} KM</div></div>
-            <div class="history-data">${run.time}</div>
-        </div>
-    `).join('');
+    if (state.history.length === 0) { UI.historyList.innerHTML = '<p style="text-align:center;color:gray;padding:20px;">Geçmiş yok.</p>'; return; }
+    UI.historyList.innerHTML = state.history.map(run => `<div class="history-item"><div><div class="history-date">${run.date}</div><div class="history-data">${run.distance} KM</div></div><div class="history-data">${run.time}</div></div>`).join('');
 }
 
-function saveData() {
-    localStorage.setItem('run_xp', state.xp); localStorage.setItem('run_lvl', state.level); localStorage.setItem('run_name', state.userName);
-}
+function saveData() { localStorage.setItem('run_xp', state.xp); localStorage.setItem('run_lvl', state.level); localStorage.setItem('run_name', state.userName); }
 
 init();
