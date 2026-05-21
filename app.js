@@ -47,7 +47,12 @@ let state = {
     avatarUrl: '',
     history: [],
     healthData: null,
-    otherUsers: {} 
+    otherUsers: {},
+    dailyQuest: null,
+    historyRouteActive: false,
+    historyRouteMarkers: [],
+    historyRoutePolyline: null,
+    historyRouteSelected: null
 };
 
 let UI = {}; // Will be populated on init
@@ -182,6 +187,26 @@ function init() {
     UI.btnCloseFriend?.addEventListener('click', () => UI.friendModal.classList.add('hidden'));
     UI.btnReplay?.addEventListener('click', startReplay);
     UI.btnStopReplay?.addEventListener('click', stopReplay);
+
+    document.getElementById('btnClearHistoryRoute')?.addEventListener('click', clearHistoryRoute);
+    document.getElementById('btnPlayHistoryReplay')?.addEventListener('click', () => {
+        if (state.historyRouteSelected && state.historyRouteSelected.path) {
+            // Temporarily swap active pathPoints for replay
+            const originalPath = [...state.pathPoints];
+            state.pathPoints = state.historyRouteSelected.path;
+            
+            // Trigger standard replay
+            startReplay();
+            
+            // Wrap stopReplay to restore original path points
+            const originalStopReplay = stopReplay;
+            stopReplay = () => {
+                originalStopReplay();
+                state.pathPoints = originalPath;
+                stopReplay = originalStopReplay; // Restore stopReplay function
+            };
+        }
+    });
 }
 
 function renderAvatarPicker(container, onSelect) {
@@ -248,7 +273,7 @@ async function loadUserData(uid) {
         state.avatarUrl = data.avatar || auth.currentUser.photoURL || PRESET_AVATARS[0];
         state.xp = data.xp || 0;
         state.level = data.level || 1;
-        state.history = data.history ? Object.values(data.history).sort((a,b)=>b.timestamp-a.timestamp) : [];
+        state.history = data.history ? (Array.isArray(data.history) ? data.history : Object.values(data.history)).sort((a,b)=>b.timestamp-a.timestamp) : [];
         state.healthData = data.healthData || null;
     } else {
         state.userName = auth.currentUser.displayName || 'Koşucu';
@@ -260,6 +285,8 @@ async function loadUserData(uid) {
     updateGamificationUI();
     updateProfileUI();
     renderHistory();
+    renderBadges();
+    initDailyQuest();
     if (state.healthData) renderDailyPlan();
     listenForOtherUsers();
     
@@ -322,14 +349,50 @@ function onLocationUpdate(position) {
     const { latitude, longitude, accuracy } = position.coords;
     if (accuracy > 60) return;
     const currentLatLng = [latitude, longitude];
+    
+    let dist = 0;
     if (state.lastLocation) {
-        const dist = calculateDistance(state.lastLocation[0], state.lastLocation[1], latitude, longitude);
-        if (dist > 2) { state.totalDistance += dist; addXP(Math.floor(dist / 2)); }
+        dist = calculateDistance(state.lastLocation[0], state.lastLocation[1], latitude, longitude);
+        if (dist > 2) { 
+            state.totalDistance += dist; 
+            addXP(Math.floor(dist / 2)); 
+            
+            // Increment quest distance
+            trackDailyQuestProgress('distance', dist / 1000);
+        }
     }
     state.lastLocation = currentLatLng; state.pathPoints.push(currentLatLng);
     if (UI.distance) UI.distance.innerText = (state.totalDistance / 1000).toFixed(2);
     polyline.setLatLngs(state.pathPoints); updateUserMarker(latitude, longitude); syncMyLocation(latitude, longitude);
     if (!state.isReplaying) map.panTo(currentLatLng);
+
+    // Dynamic Stats updates
+    const weight = state.healthData ? parseFloat(state.healthData.weight) || 70 : 70;
+    const oldCalories = Math.floor(((state.totalDistance - dist) / 1000) * weight * 1.03);
+    const newCalories = Math.floor((state.totalDistance / 1000) * weight * 1.03);
+    const diffCalories = Math.max(0, newCalories - oldCalories);
+    if (UI.calories) UI.calories.innerText = newCalories;
+    if (diffCalories > 0) trackDailyQuestProgress('calories', diffCalories);
+    
+    const oldSteps = Math.floor((state.totalDistance - dist) / 0.78);
+    const newSteps = Math.floor(state.totalDistance / 0.78);
+    const diffSteps = Math.max(0, newSteps - oldSteps);
+    state.steps = newSteps;
+    if (UI.steps) UI.steps.innerText = newSteps;
+    if (diffSteps > 0) trackDailyQuestProgress('steps', diffSteps);
+    
+    if (state.startTime) {
+        const durationMin = (Date.now() - state.startTime) / 60000;
+        const distKm = state.totalDistance / 1000;
+        if (distKm > 0.02) {
+            const paceVal = durationMin / distKm;
+            const paceMin = Math.floor(paceVal);
+            const paceSec = Math.floor((paceVal - paceMin) * 60);
+            if (UI.pace) UI.pace.innerText = `${paceMin}:${paceSec.toString().padStart(2, '0')}`;
+        } else {
+            if (UI.pace) UI.pace.innerText = "0:00";
+        }
+    }
 }
 
 function syncMyLocation(lat, lng) {
@@ -484,12 +547,25 @@ function updateProfileUI() {
         if(UI.avatarDrawer) { UI.avatarDrawer.style.backgroundImage = 'none'; UI.avatarDrawer.innerText = state.userName.charAt(0).toUpperCase(); }
     }
     updateDrawerAllTimeStats();
+    renderBadges();
 }
 
 function saveRunToHistory() { 
     const distKm = (state.totalDistance / 1000).toFixed(2); 
-    if (distKm < 0.01) return; 
-    const run = { date: new Date().toLocaleDateString('tr-TR'), distance: distKm, time: UI.time.innerText, timestamp: Date.now() };
+    if (parseFloat(distKm) < 0.01) return; 
+    
+    const currentCalories = document.getElementById('calories')?.innerText || "0";
+    const currentPace = document.getElementById('pace')?.innerText || "0:00";
+    
+    const run = { 
+        date: new Date().toLocaleDateString('tr-TR'), 
+        distance: distKm, 
+        time: UI.time.innerText, 
+        calories: currentCalories,
+        pace: currentPace,
+        path: [...state.pathPoints],
+        timestamp: Date.now() 
+    };
     state.history.unshift(run); 
     if (state.history.length > 5) state.history.pop(); 
     
@@ -499,12 +575,272 @@ function saveRunToHistory() {
     }
     renderHistory();
     updateDrawerAllTimeStats();
+    renderBadges();
 }
 
 function renderHistory() { 
     if (!UI.historyList) return; 
-    if (state.history.length === 0) { UI.historyList.innerHTML = '<p style="color:gray;padding:20px;">Geçmiş yok.</p>'; return; } 
-    UI.historyList.innerHTML = state.history.map(run => `<div class="history-item"><div>${run.date} - ${run.time}</div><div>${run.distance} KM</div></div>`).join(''); 
+    if (state.history.length === 0) { 
+        UI.historyList.innerHTML = '<p style="color:gray;padding:20px;text-align:center;">Geçmiş koşu bulunmuyor.</p>'; 
+        return; 
+    } 
+    
+    UI.historyList.innerHTML = state.history.map((run, index) => {
+        const hasRoute = run.path && run.path.length > 0;
+        return `
+            <div class="history-item-detailed" data-index="${index}">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">
+                    <span style="font-weight: 800; color: #fff; font-size: 0.85rem;">📅 ${run.date}</span>
+                    <span style="font-size: 0.6rem; color: var(--accent-color); font-weight: 800; letter-spacing: 0.5px;">${hasRoute ? '🗺️ ROTAYI GÖSTER' : 'İSTATİSTİKLER'}</span>
+                </div>
+                <div class="history-stats-grid">
+                    <div class="history-stat-mini">
+                        <div class="value">${run.distance}</div>
+                        <div class="label">KM</div>
+                    </div>
+                    <div class="history-stat-mini">
+                        <div class="value">${run.time}</div>
+                        <div class="label">Süre</div>
+                    </div>
+                    <div class="history-stat-mini">
+                        <div class="value">${run.calories || 0}</div>
+                        <div class="label">kcal</div>
+                    </div>
+                    <div class="history-stat-mini">
+                        <div class="value">${run.pace || '0:00'}</div>
+                        <div class="label">Tempo</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join(''); 
+    
+    // Bind click events
+    UI.historyList.querySelectorAll('.history-item-detailed').forEach(el => {
+        el.addEventListener('click', (e) => {
+            const index = el.dataset.index;
+            const run = state.history[index];
+            if (run) showHistoryRoute(run);
+        });
+    });
+}
+
+// --- Badges & Daily Quest System Implementation ---
+const BADGES = [
+    { id: 'first_run', name: 'İlk Adım', icon: '🟢', desc: 'İlk koşunu tamamla!' },
+    { id: 'speedy', name: 'Rüzgar', icon: '⚡', desc: '5:00 dk/km altında hız yap!' },
+    { id: 'endurance', name: 'Maratoncu', icon: '🏃‍♂️', desc: '5 KM veya üzeri koş!' },
+    { id: 'level_5', name: 'Uzman', icon: '🎖️', desc: 'Seviye 5\'e ulaş!' },
+    { id: 'level_10', name: 'Efsane', icon: '👑', desc: 'Seviye 10\'a ulaş!' }
+];
+
+const QUEST_TEMPLATES = [
+    { type: 'distance', target: 2.0, desc: 'Bugün toplam 2 KM koş.', reward: 150 },
+    { type: 'calories', target: 200, desc: 'Bugün toplam 200 kcal yak.', reward: 120 },
+    { type: 'steps', target: 3000, desc: 'Bugün toplam 3000 adım at.', reward: 100 }
+];
+
+function renderBadges() {
+    const grid = document.getElementById('drawer-badges-grid');
+    if (!grid) return;
+    
+    const hasFirstRun = state.history && state.history.length > 0;
+    let hasSpeedy = false;
+    let hasEndurance = false;
+    
+    if (state.history) {
+        state.history.forEach(run => {
+            if (parseFloat(run.distance) >= 5.0) hasEndurance = true;
+            if (run.pace) {
+                const parts = run.pace.split(':');
+                if (parts.length >= 2) {
+                    const min = parseInt(parts[0]) || 99;
+                    if (min < 5) hasSpeedy = true;
+                }
+            }
+        });
+    }
+    
+    const isLevel5 = state.level >= 5;
+    const isLevel10 = state.level >= 10;
+    
+    const unlockedMap = {
+        first_run: hasFirstRun,
+        speedy: hasSpeedy,
+        endurance: hasEndurance,
+        level_5: isLevel5,
+        level_10: isLevel10
+    };
+    
+    grid.innerHTML = BADGES.map(badge => {
+        const isUnlocked = unlockedMap[badge.id];
+        return `
+            <div class="badge-item ${isUnlocked ? 'unlocked' : ''}">
+                <div class="badge-icon">${badge.icon}</div>
+                <div class="badge-name">${badge.name}</div>
+                <div class="badge-tooltip">${badge.desc} ${isUnlocked ? '🔓 (Açıldı)' : '🔒 (Kilitli)'}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function initDailyQuest() {
+    if (!myUserId) return;
+    const todayStr = new Date().toLocaleDateString('tr-TR');
+    
+    const questRef = ref(db, `users/${myUserId}/dailyQuest`);
+    get(questRef).then(snapshot => {
+        if (snapshot.exists()) {
+            const savedQuest = snapshot.val();
+            if (savedQuest.date === todayStr) {
+                state.dailyQuest = savedQuest;
+                updateDailyQuestUI();
+                return;
+            }
+        }
+        
+        // Generate new daily quest
+        const template = QUEST_TEMPLATES[Math.floor(Math.random() * QUEST_TEMPLATES.length)];
+        state.dailyQuest = {
+            type: template.type,
+            target: template.target,
+            current: 0,
+            desc: template.desc,
+            reward: template.reward,
+            completed: false,
+            date: todayStr
+        };
+        set(questRef, state.dailyQuest);
+        updateDailyQuestUI();
+    });
+}
+
+function updateDailyQuestUI() {
+    if (!state.dailyQuest) return;
+    
+    const descEl = document.getElementById('quest-description');
+    const progressTextEl = document.getElementById('quest-progress-text');
+    const progressBarEl = document.getElementById('quest-progress-bar');
+    
+    if (descEl) descEl.innerText = state.dailyQuest.desc;
+    
+    let currentVal = state.dailyQuest.current;
+    let targetVal = state.dailyQuest.target;
+    
+    let displayCurrent = currentVal;
+    let displayTarget = targetVal;
+    
+    if (state.dailyQuest.type === 'distance') {
+        displayCurrent = currentVal.toFixed(2) + ' KM';
+        displayTarget = targetVal.toFixed(2) + ' KM';
+    } else if (state.dailyQuest.type === 'calories') {
+        displayCurrent = Math.round(currentVal) + ' kcal';
+        displayTarget = targetVal + ' kcal';
+    } else {
+        displayCurrent = Math.round(currentVal) + ' adım';
+        displayTarget = targetVal + ' adım';
+    }
+    
+    if (progressTextEl) progressTextEl.innerText = `${displayCurrent} / ${displayTarget}`;
+    
+    const pct = Math.min((currentVal / targetVal) * 100, 100);
+    if (progressBarEl) progressBarEl.style.width = `${pct}%`;
+    
+    if (state.dailyQuest.completed) {
+        if (descEl) descEl.innerHTML = `🎉 ${state.dailyQuest.desc} <span style="color:var(--accent-color); font-weight:800;">(TAMAMLANDI)</span>`;
+    }
+}
+
+function trackDailyQuestProgress(type, incrementalAmount) {
+    if (!state.dailyQuest || state.dailyQuest.completed) return;
+    
+    if (state.dailyQuest.type === type) {
+        state.dailyQuest.current += incrementalAmount;
+        if (state.dailyQuest.current >= state.dailyQuest.target) {
+            state.dailyQuest.current = state.dailyQuest.target;
+            state.dailyQuest.completed = true;
+            addXP(state.dailyQuest.reward);
+            showToast(`GÜNLÜK GÖREV TAMAMLANDI! +${state.dailyQuest.reward} XP! 🎉`);
+            speak(`Harika! Günlük görevini tamamladın ve ödülünü kazandın.`);
+        }
+        
+        if (myUserId) {
+            const questRef = ref(db, `users/${myUserId}/dailyQuest`);
+            set(questRef, state.dailyQuest);
+        }
+        updateDailyQuestUI();
+    }
+}
+
+// --- Map History Route Overlay Functions ---
+function showHistoryRoute(run) {
+    if (!run.path || run.path.length === 0) {
+        showToast("Bu eski koşuda yol verisi bulunmuyor.");
+        return;
+    }
+    
+    clearHistoryRoute();
+    
+    state.historyRouteActive = true;
+    state.historyRouteSelected = run;
+    
+    // Draw the history path using Leaflet
+    state.historyRoutePolyline = L.polyline(run.path, { color: '#00e5ff', weight: 8, opacity: 0.9, dashArray: '10, 15' }).addTo(map);
+    
+    // Create Start Marker
+    const startIcon = L.divIcon({
+        className: 'custom-div-icon',
+        html: '<div class="map-flag-marker start">🏁</div>',
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
+    });
+    const startMarker = L.marker(run.path[0], { icon: startIcon }).addTo(map)
+        .bindPopup("<b>BAŞLANGIÇ NOKTASI</b><br>" + run.date);
+    state.historyRouteMarkers.push(startMarker);
+    
+    // Create End Marker
+    const endIcon = L.divIcon({
+        className: 'custom-div-icon',
+        html: '<div class="map-flag-marker end">🛑</div>',
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
+    });
+    const endMarker = L.marker(run.path[run.path.length - 1], { icon: endIcon }).addTo(map)
+        .bindPopup("<b>BİTİŞ NOKTASI</b><br>Mesafe: " + run.distance + " KM<br>Süre: " + run.time);
+    state.historyRouteMarkers.push(endMarker);
+    
+    // Adjust map to fit route
+    map.fitBounds(state.historyRoutePolyline.getBounds(), { padding: [50, 50] });
+    
+    if (UI.historyModal) UI.historyModal.classList.add('hidden');
+    
+    const overlay = document.getElementById('history-route-overlay');
+    const overlayDate = document.getElementById('history-route-date');
+    const overlayStats = document.getElementById('history-route-stats');
+    
+    if (overlay) overlay.classList.remove('hidden');
+    if (overlayDate) overlayDate.innerText = run.date;
+    if (overlayStats) overlayStats.innerText = `${run.distance} KM | ${run.time} | ${run.calories || 0} KCAL | Tempo: ${run.pace || '0:00'}`;
+    
+    showToast("Rota haritaya yüklendi!");
+}
+
+function clearHistoryRoute() {
+    state.historyRouteActive = false;
+    state.historyRouteSelected = null;
+    
+    if (state.historyRoutePolyline) {
+        map.removeLayer(state.historyRoutePolyline);
+        state.historyRoutePolyline = null;
+    }
+    
+    state.historyRouteMarkers.forEach(marker => {
+        map.removeLayer(marker);
+    });
+    state.historyRouteMarkers = [];
+    
+    const overlay = document.getElementById('history-route-overlay');
+    if (overlay) overlay.classList.add('hidden');
 }
 
 window.addEventListener('DOMContentLoaded', init);

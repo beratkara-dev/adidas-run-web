@@ -91,6 +91,21 @@
                 <div class="widget task-widget"><span class="label">DURUM</span><span id="daily-task">Hazır</span></div>
             </div>
 
+            <!-- History Route Overlay -->
+            <div id="history-route-overlay" class="plan-card glass-card hidden" style="margin-bottom: 12px; border-top: 1px solid rgba(255,255,255,0.2);">
+                <div class="plan-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 0.65rem; color: var(--accent-color); font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">GEÇMİŞ ROTA GÖRÜNÜMÜ</span>
+                    <button id="btnClearHistoryRoute" class="btn-close-mini">&times;</button>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 5px;">
+                    <div style="text-align: left;">
+                        <div id="history-route-date" style="font-size: 0.85rem; font-weight: 800; color: #fff;">21.05.2026</div>
+                        <div id="history-route-stats" style="font-size: 0.7rem; color: var(--text-secondary); font-weight: 700; margin-top: 2px;">5.20 KM | 28:40 | 450 KCAL</div>
+                    </div>
+                    <button id="btnPlayHistoryReplay" class="btn btn-primary btn-sm" style="font-size: 0.65rem; padding: 0 10px; height: 30px;">TEKRAR OYNAT 🎥</button>
+                </div>
+            </div>
+
             <!-- AI Daily Plan Card -->
             <div id="daily-plan-card" class="plan-card glass-card hidden">
                 <div class="plan-header"><span>AI GÜNLÜK PROGRAMIN</span><button id="btnClosePlan" class="btn-close-mini">&times;</button></div>
@@ -195,6 +210,29 @@
                     <div style="text-align: center;">
                         <div style="font-size: 0.6rem; color: var(--text-secondary); font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;">TOPLAM MESAFE</div>
                         <div id="drawer-total-dist" style="font-size: 1.3rem; font-weight: 800; font-family: var(--font-display); color: var(--accent-color); margin-top: 5px;">0.00 <span style="font-size: 0.65rem; color: #fff;">KM</span></div>
+                    </div>
+                </div>
+
+                <!-- Badges (Rozetlerim) Grid -->
+                <div class="drawer-badges-section" style="background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); padding: 15px; border-radius: 18px; margin-top: 10px;">
+                    <h4 style="font-family: var(--font-display); font-size: 0.75rem; letter-spacing: 1px; color: var(--accent-color); margin-bottom: 12px; text-transform: uppercase; font-weight: 800;">ROZETLERİM</h4>
+                    <div class="badges-grid" id="drawer-badges-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                        <!-- Dynamic Badges will be rendered here -->
+                    </div>
+                </div>
+
+                <!-- Daily Quests Section -->
+                <div class="drawer-quest-section" style="background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); padding: 15px; border-radius: 18px; margin-top: 10px;">
+                    <h4 style="font-family: var(--font-display); font-size: 0.75rem; letter-spacing: 1px; color: var(--accent-color); margin-bottom: 5px; text-transform: uppercase; font-weight: 800;">GÜNLÜK GÖREV</h4>
+                    <div id="quest-container">
+                        <div id="quest-description" style="font-size: 0.75rem; font-weight: 700; color: #fff; margin-bottom: 8px;">Yükleniyor...</div>
+                        <div class="quest-progress-container" style="background: rgba(255,255,255,0.1); height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 5px;">
+                            <div id="quest-progress-bar" style="background: var(--accent-color); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-secondary); font-weight: 700;">
+                            <span id="quest-progress-text">0 / 0</span>
+                            <span id="quest-reward" style="color: var(--accent-color);">+100 XP</span>
+                        </div>
                     </div>
                 </div>
                 
