@@ -1,36 +1,31 @@
-# 🎓 Adidas Run - Proje Sunum & Sınav Hazırlık Rehberi (Hoca Kurtaran Rehber)
+# 📊 Adidas Run - Proje Teknik Altyapı ve Sunum Dokümantasyonu
 
-Bu rehber, yarın hocana projeyi sunarken karşına çıkabilecek **tüm teknik soruları**, **veritabanı (Database) detaylarını** ve hocanın **konuyu kaydırabileceği teorik soruları (JSON, w3schools, Web Standartları vb.)** en basit ve akılda kalıcı şekilde cevaplaman için hazırlanmıştır.
-
-Hocanın bilgisayarında GitHub üzerinden bu dosyayı açıp doğrudan buradan da yararlanabilirsin!
+Bu doküman, **Adidas Run Web** uygulamasının yazılım mimarisini, veritabanı şemasını, veri modellerini ve kullanılan web teknolojilerinin endüstriyel standartlarını detaylandırmak üzere hazırlanmış **resmi teknik başvuru kılavuzudur**.
 
 ---
 
-## 🎯 1. PROJENİN GENEL MİMARİSİ (SİSTEM NASIL ÇALIŞIYOR?)
+## 🎯 1. PROJE MİMARİSİ VE SİSTEM TASARIMI
 
-Hocan sana **"Bu sistemin mimarisi nedir? Veriler nereye gidiyor?"** derse cevap:
+Adidas Run, modern web standartlarına uygun olarak tasarlanmış, sunucusuz (**Serverless**) bir mimariye sahip gerçek zamanlı bir aktivite takip uygulamasıdır.
 
-> *"Hocam, bu proje **Sunucu Barındırmayan (Serverless)** modern bir web uygulamasıdır. Klasik bir veritabanı sunucusu (MySQL vb.) kurmak yerine, **Firebase** bulut servislerini kullandık.*
-> * * **Frontend (Ön Yüz):** HTML5, Vanilla CSS3 (Cam efekti/Glassmorphism ile Adidas tasarımı) ve JavaScript (ES6+). Harita için açık kaynaklı **Leaflet.js** kütüphanesini kullandık.*
-> * * **Backend & Veritabanı:** **Google Firebase Cloud** servisleri. Kullanıcı yönetimi için **Firebase Auth**, gerçek zamanlı konum ve geçmiş takibi için ise **Firebase Realtime Database (NoSQL)** kullandık."*
+* **Frontend (Ön Yüz):** Semantik HTML5 standartları, modern Vanilla CSS3 (Glassmorphism/Cam efekti tasarımı) ve JavaScript (ES6+ Modüler Yapı). Harita arayüzü ve coğrafi görselleştirmeler için açık kaynaklı **Leaflet.js** kütüphanesi entegre edilmiştir.
+* **Backend & Veri Katmanı:** **Google Firebase Bulut Servisleri**. Kullanıcı kimlik doğrulama, oturum yönetimi ve şifreleme katmanı için **Firebase Authentication**; gerçek zamanlı konum paylaşımı, kullanıcı etkileşimi, dinamik günlük görevler ve geçmiş takibi için **Firebase Realtime Database (NoSQL)** mimarisi tercih edilmiştir.
 
 ---
 
-## 💾 2. VERİTABANI (DATABASE) YAPISI & FİREBASE DETAYLARI
+## 💾 2. VERİTABANI MİMARİSİ VE VERİ YAPILANDIRMASI
 
-Hocanın en çok soracağı ve odaklanacağı kısım burasıdır.
+### A) Firebase Realtime Database Altyapısı
+Uygulamada kullanılan NoSQL veritabanı, verileri ilişkisel tablolar (SQL) yerine tek bir hiyerarşik **JSON Ağacı (NoSQL)** yapısında depolar.
+* **Gerçek Zamanlı İletişim (Realtime):** Veritabanı istemcilerle **WebSockets** protokolü üzerinden sürekli açık bir bağlantı kurar. Veri üzerinde yapılan herhangi bir değişiklik (Insert, Update, Delete) milisaniyeler seviyesinde tüm bağlı istemcilere otomatik olarak dağıtılır. Bu sayede haritada aktif koşan diğer kullanıcıların konumları sayfayı yenilemeden anlık olarak senkronize edilir.
 
-### A) Firebase Realtime Database Nedir?
-* **Cevap:** *"Hocam, Firebase Realtime Database, verileri ilişkisel tablolar (SQL) yerine tek bir büyük **JSON Ağacı (NoSQL)** olarak tutan bulut tabanlı bir veritabanıdır.*
-* **Neden Realtime (Gerçek Zamanlı)?** *"WebSockets protokolünü kullanır. Yani veritabanında bir veri değiştiği anda, sayfayı yenilemeye gerek kalmadan kullanıcının ekranı otomatik olarak güncellenir. Bu sayede haritada koşan diğer kullanıcıları anlık olarak görebiliyoruz."*
-
-### B) Veritabanı JSON Ağacı Şemamız (Hocaya Gösterilecek Şema)
-Veritabanımızda veriler tam olarak şu JSON formatında tutulmaktadır:
+### B) Mantıksal Veri Modeli (JSON Schema)
+Sistemdeki tüm kullanıcı profilleri, aktiviteler, günlük görevler ve geçmiş koşu rotaları veritabanında aşağıdaki veri modeline uygun olarak yapılandırılmıştır:
 
 ```json
 {
   "users": {
-    "KULLANICI_BENZERSİZ_ID_KODU (UID)": {
+    "KULLANICI_BENZERSİZ_UID_KODU": {
       "name": "Berat",
       "avatar": "https://api.dicebear.com/...",
       "level": 3,
@@ -72,69 +67,58 @@ Veritabanımızda veriler tam olarak şu JSON formatında tutulmaktadır:
 }
 ```
 
-### C) Veritabanı Kod Metotlarımız (Hoca Kod Sorarsa)
-Veritabanı işlemlerini `app.js` dosyasında şu **Firebase SDK** fonksiyonları ile yönetiyoruz:
+### C) Firebase SDK Veri Erişim Metotları
+Veritabanı okuma ve yazma süreçleri, `app.js` içerisinde Firebase veri erişim API'leri kullanılarak asenkron olarak gerçekleştirilir:
 
-| Fonksiyon | Ne İşe Yarar? | Projedeki Örneği |
+| Firebase API Fonksiyonu | Fonksiyonel Amacı | Projedeki Uygulama Noktası |
 | :--- | :--- | :--- |
-| **`ref()`** | Veritabanındaki veri düğümünün adresini (yolunu) belirtir. | `ref(db, 'users/' + myUserId)` |
-| **`set()`** | Belirtilen adresteki veriyi tamamen sıfırlayıp yenisini yazar. | Kayıt olurken veya rota kaydederken kullanılır. |
-| **`update()`** | Mevcut verileri bozmadan sadece içindeki belirli alanları günceller. | Anlık konum (`lat`, `lng`) veya XP güncellerken kullanılır. |
-| **`get()`** | Veriyi veritabanından tek seferlik (statik) olarak okur. | Kullanıcı giriş yaptığında geçmiş koşularını yüklerken kullanılır. |
-| **`onValue()`** | Veritabanındaki değişikliği sürekli dinler, veri değiştikçe tetiklenir. | Haritada diğer koşan arkadaşları anlık çizdirmek için dinleyicidir. |
+| **`ref()`** | Veritabanındaki hedef veri düğümünün adresini/yolunu işaret eder. | `ref(db, 'users/' + myUserId)` |
+| **`set()`** | Hedef düğümdeki mevcut veriyi tamamen silerek yeni veriyi kaydeder. | İlk kullanıcı kaydı ve rota geçmişi yazım işlemlerinde. |
+| **`update()`** | Mevcut veri yapısını bozmadan, sadece belirtilen anahtarları günceller. | Anlık koordinat değişiklikleri, XP artışları ve seviye güncellemelerinde. |
+| **`get()`** | Verilen düğümdeki veriyi tek seferlik asenkron (Promise) olarak çeker. | Oturum açılışında kullanıcı profilinin ve sağlık verilerinin yüklenmesinde. |
+| **`onValue()`** | Belirtilen düğümü sürekli dinleyerek gerçek zamanlı akış tetikler. | Haritadaki diğer aktif kullanıcıların konum değişimlerini izlemede. |
 
 ---
 
-## 🔑 3. KULLANICI KİMLİK DOĞRULAMA (FIREBASE AUTH)
+## 🔑 3. KULLANICI KİMLİK DOĞRULAMA VE GÜVENLİK (FIREBASE AUTH)
 
-Hocan **"Giriş ve Kayıt nasıl yapılıyor? Şifreleri güvenli mi tutuyorsun?"** derse cevap:
+Uygulamanın kullanıcı güvenliği ve oturum yönetimi, güvenli kimlik doğrulama standartlarına dayanır:
 
-1. **Şifre Güvenliği:** *"Hocam, kullanıcı şifrelerini asla düz metin (plain-text) olarak veritabanına kaydetmiyoruz. Firebase Auth altyapısı şifreleri sunucu tarafında **SHA-256 / scrypt** algoritmalarıyla otomatik olarak tuzlayıp şifreler (Hash). Biz bile şifrelerin gerçeğini göremeyiz."*
-2. **Kullanılan Kod Yapısı:**
-   * **Giriş:** `signInWithEmailAndPassword(auth, email, password)`
-   * **Kayıt:** `createUserWithEmailAndPassword(auth, email, password)`
-   * **Oturum Takibi:** `onAuthStateChanged(auth, (user) => { ... })` ile tarayıcı kapatılıp açılsa bile kullanıcının oturumu açık kalır.
+1. **Şifreleme Altyapısı (Hashing):** İstemci şifreleri hiçbir şekilde sunucularda veya veritabanında düz metin (plain-text) olarak saklanmaz. Firebase Authentication, şifreleri sunucu tarafında **SHA-256 ve scrypt** algoritmalarıyla otomatik olarak tuzlayıp (salt) kriptografik olarak özetler.
+2. **Asenkron Oturum Kontrolü:** İstemci tarafında oturum durumu `onAuthStateChanged` asenkron dinleyicisi ile takip edilir. Oturum açıldığında elde edilen JWT (JSON Web Token) tabanlı güvenli anahtarlar tarayıcının güvenli depolama birimlerinde saklanarak kalıcı oturum yönetimi sağlanır.
 
 ---
 
-## ⚠️ 4. ALAKASIZ VE TEORİK HOCA SORULARI (KONU SAPARSA KURTARMA REHBERİ)
+## 🌐 4. WEB TEKNOLOJİLERİ VE STANDARTLARI (W3C & NoSQL)
 
-Hocan w3schools veya web standartları gibi alakasız yerlere geçerse, sakin ol ve şu profesyonel tanımları yap:
+### A) JSON (JavaScript Object Notation) Veri Formatı Standartları
+JSON, sistemler arası veri transferinde hafiflik ve esneklik sağlayan metin tabanlı bir veri değişim formatıdır.
+* Veriler **Anahtar-Değer (Key-Value)** yapısıyla temsil edilir.
+* Süslü parantezler nesneleri `{ }`, köşeli parantezler ise sıralı dizileri `[ ]` ifade eder.
+* JSON standartlarına göre, anahtar adları **her zaman çift tırnak (`" "`)** ile yazılmalıdır; tek tırnak kullanımı geçersizdir.
 
-### Soru: "JSON Nedir? Yapısını anlat."
-* **Cevap:** *"JSON, **J**ava**S**cript **O**bject **N**otation (JavaScript Nesne Gösterimi) kelimelerinin kısaltmasıdır. Sistemler arası veri alışverişi yapmak için kullanılan, insan tarafından okunması kolay, hafif ve metin tabanlı bir standarttır.*
-* **Yazım Kuralları (Syntax):**
-  * Veriler **Anahtar-Değer (Key-Value)** çiftleri halinde tutulur: `"isim": "Berat"`
-  * Veriler virgüllerle ayrılır.
-  * Süslü parantezler `{ }` nesneleri (objeleri), köşeli parantezler `[ ]` dizileri (array) temsil eder.
-  * Anahtar isimleri her zaman **çift tırnak (`" "`)** içinde yazılmalıdır.
+### B) W3C Standartları ve Web Erişilebilirliği
+**W3C (World Wide Web Consortium)**, web teknolojilerinin (HTML5, CSS3, XML vb.) tüm tarayıcılarda uyumlu, kararlı ve erişilebilir çalışması için standartlar geliştiren uluslararası bir kuruluştur. Projemiz W3C standartlarına uygun semantik etiketleme ve responsive (mobil uyumlu) yerleşim mimarisine sahiptir.
 
-### Soru: "W3C Nedir? Web Standartları Nelerdir?"
-* **Cevap:** *"W3C, **World Wide Web Consortium**'dur. Web'in kurucusu **Tim Berners-Lee** tarafından kurulmuştur. Web sayfalarının tüm tarayıcılarda (Chrome, Safari, Edge) aynı ve kararlı çalışması için standartlar (HTML5, CSS3 yönergeleri) belirler. Kodlarımızı W3C standartlarına uygun yazmak SEO ve erişilebilirlik açısından kritiktir."*
+### C) SQL (İlişkisel) ve NoSQL (İlişkisel Olmayan) Karşılaştırması
+* **SQL Veritabanları (İlişkisel):** Katı şemalara sahiptir. Tablolar, satırlar ve sütunlar bulunur. Veriler birbiriyle birincil/yabancı anahtarlar yardımıyla ilişkilendirilir. Dikey ölçekleme (vertical scaling) odaklıdır.
+* **NoSQL Veritabanları (İlişkisel Olmayan):** Şemasız (Schema-less) bir yapıdadır. Veriler belgelerde (Document) veya hiyerarşik ağaçlarda saklanır. Yatay ölçeklenebilirliği (horizontal scaling) son derece yüksektir ve esnek veri modellerini destekler.
 
-### Soru: "SQL (İlişkisel) ile NoSQL (İlişkisel Olmayan) Veritabanı Arasındaki Fark Nedir?"
-* **Cevap:** 
-  * *"**SQL (MySQL, PostgreSQL):** Tablolardan oluşur. Satır ve sütunlar vardır. Tablolar birbirine yabancı anahtarlarla (Foreign Key) bağlıdır. Katı şemalara sahiptir.*
-  * ***NoSQL (Firebase, MongoDB):** Belge (Document) veya JSON ağacı tabanlıdır. İlişkiler yoktur, veriler iç içe (nested) gömülü olarak tutulur. Şemasızdır (Schema-less), yani her kullanıcı kaydına isteğe bağlı olarak farklı alanlar (örneğin sadece bazılarına sağlık verisi) ekleyebiliriz. Çok daha hızlı ve yatayda kolay ölçeklenebilirdir."*
-
-### Soru: "Haritayı nasıl çizdiniz? GPS verisi nasıl geliyor?"
-* **Cevap:** 
-  * *"Hocam, harita alt yapısı için açık kaynaklı ve performans dostu **Leaflet.js** kütüphanesini kullandık. Harita karolarını (Map Tiles) **OpenStreetMap** üzerinden çekiyoruz.*
-  * *Konum bilgisi ise tarayıcının yerleşik **W3C Geolocation API**'si yardımıyla cihazın GPS/Wi-Fi çiplerinden anlık enlem (latitude) ve boylam (longitude) olarak `navigator.geolocation.watchPosition` metoduyla çekilip veritabanına ve haritaya aktarılıyor."*
+### D) Coğrafi Bilgi Sistemi (GIS) Altyapısı ve Geolocation
+* Harita görselleştirmesi, performans odaklı açık kaynaklı **Leaflet.js** kütüphanesi ve **OpenStreetMap** karo sunucuları (Map Tiles) aracılığıyla sunulur.
+* Kullanıcının anlık konumu, tarayıcının yerleşik **W3C Geolocation API**'si yardımıyla cihazın GPS veya ağ donanımlarından asenkron koordinatlar olarak çekilir.
 
 ---
 
-## ⚡ 5. SUNUM ESNASINDA HOCAYA GÖSTERİLECEK 3 EFSANE ÖZELLİK
+## ⚡ 5. UYGULAMANIN İLERİ DÜZEY FONKSİYONEL ÖZELLİKLERİ
 
-Hocanın gözünü boyamak ve tam puan almak için sunumda şu 3 özelliği ön plana çıkar:
+Uygulama, standart bir aktivite takip aracından farklı olarak aşağıdaki gelişmiş yazılım bileşenlerini barındırır:
 
-1. **İnteraktif Rota Replay (Tekrar Oynatım):** 
-   * *"Hocam, geçmişteki bir koşuma tıkladığımda haritada koştuğum yolları Leaflet üzerinde neon çizgilerle çiziyor. Üstelik 'Tekrar Oynat' tuşuna basarak, sanki o an koşuyormuşum gibi haritada markerın hareketini animasyonlu simüle edebiliyorum."*
-2. **Dinamik Sesli ve Ödüllü Günlük Görev:** 
-   * *"Hocam, her gün tarihe özel rastgele bir görev atanıyor. Görev bittiğinde Firebase veritabanı anlık güncelleniyor, kullanıcı seviye atlıyor ve tarayıcının ses motoru (TTS) Türkçe olarak kullanıcıyı tebrik ediyor."*
-3. **Anlık Diğer Kullanıcılar (Realtime Multi-user):** 
-   * *"Hocam, eğer sisteme başka bir tarayıcıdan veya telefondan biri giriş yapıp koşmaya başlarsa, Firebase Realtime Database sayesinde haritamızda onun avatarı anlık olarak beliriyor ve onun hareketlerini sayfayı yenilemeden canlı izleyebiliyoruz!"*
+1. **İnteraktif Aktivite Rota Oynatıcısı (Replay Engine):** Kaydedilen geçmiş koşu koordinat dizileri (`pathPoints`) Leaflet motorunda çizilerek görselleştirilir. "Tekrar Oynat" fonksiyonu, bu koordinat matrisini belirli zaman aralıklarıyla asenkron döngüye sokarak harita üzerinde marker hareketini dinamik olarak simüle eder.
+2. **Gerçek Zamanlı Günlük Görev Motoru:** Her güne özel atanan dinamik görevler, koşu esnasında W3C Geolocation API'den gelen verilerle anlık tetiklenerek güncellenir. Görev tamamlandığında Firebase üzerinde asenkron veri güncellenir, XP eklenir ve tarayıcının yerleşik **SpeechSynthesis (Text-to-Speech)** motoru Türkçe başarı tebriği seslendirir.
+3. **Gerçek Zamanlı Çoklu Kullanıcı Desteği (Realtime P2P Simulation):** Veritabanı üzerindeki aktif kullanıcı dinleyicisi sayesinde, aynı anda sisteme giren farklı sporcular harita üzerinde canlı avatarlarıyla konumlandırılır.
 
 ---
 
-🎉 **Yarınki sunumunda başarılar Berat! Sakin ol, bu rehberi hocanın bilgisayarında aç ve projeyi gururla anlat. Tam puan senin!** 💪🏆
+### Sonuç
+Bu proje; modern web teknolojileri (HTML5, CSS3, ES6+ JavaScript), bulut tabanlı NoSQL veritabanı mimarisi (Google Firebase) ve açık kaynaklı coğrafi bilgi sistemleri (Leaflet) entegrasyonu ile endüstriyel standartlara tam uyumlu olarak geliştirilmiştir.
