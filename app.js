@@ -200,6 +200,7 @@ function toggleAuthMode() {
     UI.authTitle.innerText = isRegisterMode ? "KAYIT OL" : "GİRİŞ YAP";
     UI.authToggleText.innerText = isRegisterMode ? "Zaten hesabınız var mı?" : "Hesabınız yok mu?";
     UI.btnAuthToggle.innerText = isRegisterMode ? "Giriş Yap" : "Kayıt Ol";
+    UI.btnAuthSubmit.innerText = isRegisterMode ? "KAYIT OL" : "GİRİŞ YAP";
     
     if (isRegisterMode) {
         UI.authNameGroup.classList.remove('hidden');
