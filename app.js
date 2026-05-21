@@ -65,6 +65,7 @@ function init() {
         authAvatarGroup: document.getElementById('auth-avatar-group'),
         authTitle: document.getElementById('auth-title'),
         btnAuthToggle: document.getElementById('btnAuthToggle'),
+        btnAuthSubmit: document.getElementById('btnAuthSubmit'),
         authToggleText: document.getElementById('auth-toggle-text'),
         registerAvatarPicker: document.getElementById('register-avatar-picker'),
         
