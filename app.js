@@ -296,7 +296,10 @@ async function loadUserData(uid) {
             map.setView([latitude, longitude], 17);
             updateUserMarker(latitude, longitude);
             syncMyLocation(latitude, longitude);
+            fetchWeather(latitude, longitude);
         });
+    } else {
+        fetchWeather(41.0082, 28.9784); // Default to Istanbul Center
     }
 }
 
@@ -841,6 +844,46 @@ function clearHistoryRoute() {
     
     const overlay = document.getElementById('history-route-overlay');
     if (overlay) overlay.classList.add('hidden');
+}
+
+// --- Dynamic Weather Forecasting (Open-Meteo API) ---
+async function fetchWeather(lat, lng) {
+    try {
+        const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`);
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data && data.current_weather) {
+            const temp = Math.round(data.current_weather.temperature);
+            const code = data.current_weather.weathercode;
+            
+            // Map weathercode to emoji and text description
+            let emoji = "☀️";
+            let desc = "Koşu İdeal";
+            
+            if (code === 0) { emoji = "☀️"; desc = "Güneşli"; }
+            else if ([1, 2, 3].includes(code)) { emoji = "⛅"; desc = "Parçalı Bulutlu"; }
+            else if ([45, 48].includes(code)) { emoji = "🌫️"; desc = "Sisli"; }
+            else if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) { emoji = "🌧️"; desc = "Yağmurlu"; }
+            else if ([71, 73, 75, 77, 85, 86].includes(code)) { emoji = "❄️"; desc = "Karlı"; }
+            else if ([95, 96, 99].includes(code)) { emoji = "⛈️"; desc = "Fırtınalı"; }
+            
+            let advice = "Koşu İdeal";
+            if (temp > 30) advice = "Çok Sıcak 💧";
+            else if (temp < 5) advice = "Çok Soğuk ❄️";
+            else if (emoji === "🌧️") advice = "Yağmurluk Alın 🧥";
+            else if (emoji === "⛈️") advice = "Evde Kalın 🏠";
+            
+            const weatherEl = document.getElementById('weather-text');
+            if (weatherEl) {
+                const widget = weatherEl.parentElement;
+                if (widget) {
+                    widget.innerHTML = `<span>${emoji}</span><span id="weather-text">${temp}°C ${desc} (${advice})</span>`;
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Hava durumu yüklenemedi:", e);
+    }
 }
 
 window.addEventListener('DOMContentLoaded', init);
