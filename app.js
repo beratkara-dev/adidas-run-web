@@ -434,7 +434,46 @@ function calculateDistance(lat1, lon1, lat2, lon2) { const R = 6371e3, φ1 = lat
 function updateTimer() { if (!state.startTime) return; const diff = Date.now() - state.startTime, h = Math.floor(diff / 3600000), m = Math.floor((diff % 3600000) / 60000), s = Math.floor((diff % 60000) / 1000); UI.time.innerText = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`; }
 function addXP(amount) { state.xp += amount; const nextLevelXP = state.level * 500; if (state.xp >= nextLevelXP) { state.xp -= nextLevelXP; state.level++; showToast("LEVEL UP! 🎉"); } updateGamificationUI(); saveData(); }
 
-function updateGamificationUI() { if (UI.lvl) UI.lvl.innerText = state.level; if (UI.xpBar) UI.xpBar.style.width = `${(state.xp / (state.level * 500)) * 100}%`; }
+function updateGamificationUI() { 
+    if (UI.lvl) UI.lvl.innerText = state.level; 
+    if (UI.xpBar) UI.xpBar.style.width = `${(state.xp / (state.level * 500)) * 100}%`; 
+    
+    // Update drawer levels dynamically
+    const drawerLvl = document.getElementById('drawer-lvl-value');
+    if (drawerLvl) drawerLvl.innerText = state.level;
+    
+    const drawerXpProgress = document.getElementById('drawer-xp-progress');
+    if (drawerXpProgress) drawerXpProgress.style.width = `${(state.xp / (state.level * 500)) * 100}%`;
+    
+    const drawerXpCurrent = document.getElementById('drawer-xp-current');
+    if (drawerXpCurrent) drawerXpCurrent.innerText = `${state.xp} XP`;
+    
+    const targetXp = state.level * 500;
+    const drawerXpTarget = document.getElementById('drawer-xp-target');
+    if (drawerXpTarget) drawerXpTarget.innerText = `${targetXp} XP`;
+    
+    const rankTitle = document.getElementById('drawer-rank-title');
+    if (rankTitle) {
+        if (state.level < 3) rankTitle.innerText = "YENİ BAŞLAYAN";
+        else if (state.level < 6) rankTitle.innerText = "AKTİF KOŞUCU";
+        else if (state.level < 10) rankTitle.innerText = "PROFESYONEL";
+        else rankTitle.innerText = "EFSANEVİ KOŞUCU";
+    }
+}
+
+function updateDrawerAllTimeStats() {
+    const totalRuns = state.history ? state.history.length : 0;
+    let totalDist = 0;
+    if (state.history) {
+        state.history.forEach(run => {
+            totalDist += parseFloat(run.distance) || 0;
+        });
+    }
+    const runsEl = document.getElementById('drawer-total-runs');
+    if (runsEl) runsEl.innerText = totalRuns;
+    const distEl = document.getElementById('drawer-total-dist');
+    if (distEl) distEl.innerHTML = `${totalDist.toFixed(2)} <span style="font-size: 0.65rem; color: #fff;">KM</span>`;
+}
 
 function updateProfileUI() { 
     if (state.avatarUrl) {
@@ -444,6 +483,7 @@ function updateProfileUI() {
         if(UI.avatarNav) { UI.avatarNav.style.backgroundImage = 'none'; UI.avatarNav.innerText = state.userName.charAt(0).toUpperCase(); }
         if(UI.avatarDrawer) { UI.avatarDrawer.style.backgroundImage = 'none'; UI.avatarDrawer.innerText = state.userName.charAt(0).toUpperCase(); }
     }
+    updateDrawerAllTimeStats();
 }
 
 function saveRunToHistory() { 
@@ -458,6 +498,7 @@ function saveRunToHistory() {
         set(historyRef, state.history);
     }
     renderHistory();
+    updateDrawerAllTimeStats();
 }
 
 function renderHistory() { 

@@ -167,6 +167,37 @@
                     <input type="text" id="input-name" placeholder="İsminiz">
                 </div>
                 
+                <!-- Level & Rank Progress Card in Drawer -->
+                <div class="drawer-stats-card glass-card" style="background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); padding: 15px; border-radius: 18px; margin-top: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 0.65rem; color: var(--accent-color); font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">RUNNER RANK</span>
+                        <span id="drawer-rank-title" style="font-size: 0.65rem; color: #fff; font-weight: 800; opacity: 0.8;">YENİ BAŞLAYAN</span>
+                    </div>
+                    <div style="display: flex; align-items: baseline; gap: 5px; margin-bottom: 10px;">
+                        <span style="font-size: 1.8rem; font-weight: 900; font-family: var(--font-display); line-height: 1;" id="drawer-lvl-value">1</span>
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 700;">SEVİYE</span>
+                    </div>
+                    <div class="xp-bar-container" style="background: rgba(255,255,255,0.1); height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 5px;">
+                        <div id="drawer-xp-progress" class="xp-progress" style="background: var(--accent-color); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-secondary); font-weight: 700;">
+                        <span id="drawer-xp-current">0 XP</span>
+                        <span id="drawer-xp-target">500 XP</span>
+                    </div>
+                </div>
+
+                <!-- All-time Stats Card -->
+                <div class="drawer-alltime-stats" style="background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); padding: 15px; border-radius: 18px; margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div style="text-align: center; border-right: 1px solid rgba(255,255,255,0.08);">
+                        <div style="font-size: 0.6rem; color: var(--text-secondary); font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;">TOPLAM KOŞU</div>
+                        <div id="drawer-total-runs" style="font-size: 1.3rem; font-weight: 800; font-family: var(--font-display); color: #fff; margin-top: 5px;">0</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.6rem; color: var(--text-secondary); font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;">TOPLAM MESAFE</div>
+                        <div id="drawer-total-dist" style="font-size: 1.3rem; font-weight: 800; font-family: var(--font-display); color: var(--accent-color); margin-top: 5px;">0.00 <span style="font-size: 0.65rem; color: #fff;">KM</span></div>
+                    </div>
+                </div>
+                
                 <!-- Drawer Avatar Picker (Hidden by default) -->
                 <div id="drawer-avatar-picker-container" class="drawer-avatar-picker hidden" style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; margin-top: 15px;">
                     <h4 style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 10px;">AVATAR SEÇİN</h4>
@@ -190,7 +221,7 @@
                 <ul class="menu-list">
                     <li class="menu-item active">Ana Sayfa</li>
                     <li class="menu-item" onclick="location.reload()">Yenile</li>
-                    <li class="menu-item" id="btnLogout" style="color: var(--danger-color); cursor: pointer; margin-top: 10px; font-weight: 800;">Çıkış Yap</li>
+                    <li class="menu-item" id="btnLogout">Çıkış Yap</li>
                 </ul>
             </div>
         </div>
