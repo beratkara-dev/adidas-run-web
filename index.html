@@ -13,13 +13,61 @@
     {
       "imports": {
         "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
-        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"
       }
     }
     </script>
 </head>
 <body>
     <div id="app">
+        <!-- Auth Overlay (Giriş / Kayıt) -->
+        <div id="auth-overlay" class="auth-overlay hidden">
+            <div class="auth-card glass-card">
+                <div class="brand" style="display: flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--font-display); font-weight: 800; letter-spacing: 1.5px; margin-bottom: 20px; font-size: 1.5rem;">
+                    <svg viewBox="0 0 24 24" class="adidas-logo" style="width: 45px; height: 45px;">
+                        <path d="M2,19L9,4L12,4L5,19M8,19L15,4L18,4L11,19M14,19L21,4L24,4L17,19" fill="currentColor"/>
+                    </svg>
+                    <span>RUN WEB</span>
+                </div>
+                
+                <h3 id="auth-title" style="text-align: center; margin-bottom: 5px;">GİRİŞ YAP</h3>
+                <p id="auth-subtitle" class="auth-subtitle" style="text-align: center; color: var(--text-secondary); margin-bottom: 20px; font-size: 0.85rem;">Her adımda gücü hisset. Devam etmek için oturum aç.</p>
+                
+                <form id="auth-form" onsubmit="return false;">
+                    <!-- Full Name (Only for Sign Up) -->
+                    <div id="auth-name-group" class="input-group hidden">
+                        <label for="auth-name">AD SOYAD</label>
+                        <input type="text" id="auth-name" placeholder="Koşucu Adı">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="auth-email">E-POSTA ADRESİ</label>
+                        <input type="email" id="auth-email" required placeholder="ornek@adidas.com">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="auth-password">ŞİFRE</label>
+                        <input type="password" id="auth-password" required placeholder="••••••••">
+                    </div>
+
+                    <!-- Avatar Picker (Only for Sign Up) -->
+                    <div id="auth-avatar-group" class="input-group hidden">
+                        <label>RUNNER PERSONA (AVATAR SEÇİN)</label>
+                        <div class="avatar-picker-grid" id="register-avatar-picker">
+                            <!-- Preset Avatars will be rendered here -->
+                        </div>
+                    </div>
+                    
+                    <button type="submit" id="btnAuthSubmit" class="btn btn-primary btn-auth" style="width: 100%; margin-top: 15px;">GİRİŞ YAP</button>
+                </form>
+                
+                <div class="auth-toggle" style="text-align: center; margin-top: 20px;">
+                    <span id="auth-toggle-text" style="font-size: 0.8rem; color: var(--text-secondary);">Hesabınız yok mu?</span>
+                    <button id="btnAuthToggle" class="btn-text" style="font-size: 0.8rem; color: var(--accent-color); margin-left: 5px;">Kayıt Ol</button>
+                </div>
+            </div>
+        </div>
         <header class="glass-header">
             <div class="brand">
                 <svg viewBox="0 0 24 24" class="adidas-logo">
@@ -76,16 +124,34 @@
             </div>
         </div>
 
-        <!-- Friend Profile Modal -->
-        <div id="friend-modal" class="modal hidden">
-            <div class="modal-content glass-card" style="text-align: center;">
-                <div class="avatar-lg" id="friend-avatar" style="background: #fff; color: #000;">M</div>
-                <h2 id="friend-name" style="margin-top: 10px;">Biri Koşuyor</h2>
-                <div class="plan-grid" style="margin-top: 20px;">
-                    <div class="plan-item"><span class="p-label">SEVİYE</span><span id="friend-lvl" class="p-value">LVL 1</span></div>
-                    <div class="plan-item"><span class="p-label">MESAFE</span><span id="friend-dist" class="p-value">0.0 KM</span></div>
+        <!-- History Modal -->
+        <div id="history-modal" class="modal hidden">
+            <div class="modal-content glass-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="color: var(--accent-color);">KOŞU GEÇMİŞİ</h3>
+                    <button id="btnCloseHistory" class="btn-close-mini">&times;</button>
                 </div>
-                <button id="btnCloseFriend" class="btn btn-secondary" style="margin-top: 20px; height: 40px;">KAPAT</button>
+                <div id="history-list" style="max-height: 300px; overflow-y: auto;">
+                    <!-- History items will go here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Sliding Friend Info Panel -->
+        <div id="friend-modal" class="friend-info-panel hidden">
+            <div class="panel-content glass-card">
+                <button id="btnCloseFriend" class="btn-close-mini" style="position: absolute; right: 15px; top: 15px;">&times;</button>
+                <div class="friend-profile-row" style="display: flex; align-items: center; gap: 15px;">
+                    <div class="avatar-md" id="friend-avatar" style="width: 50px; height: 50px; border-radius: 50%; background: #fff; color: #000; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.5rem; flex-shrink: 0; background-size: cover; background-position: center;">M</div>
+                    <div class="friend-details" style="text-align: left;">
+                        <div class="friend-status-badge" style="font-size: 0.55rem; color: var(--accent-color); font-weight: 800; letter-spacing: 1px; margin-bottom: 3px;">● AKTİF KOŞUCU</div>
+                        <h3 id="friend-name" style="margin: 0 0 5px 0; font-size: 1.1rem;">Biri Koşuyor</h3>
+                        <div class="friend-stats-inline" style="display: flex; gap: 10px;">
+                            <span class="stat-badge" id="friend-lvl" style="background: rgba(255,255,255,0.1); padding: 3px 8px; border-radius: 10px; font-size: 0.65rem; font-weight: 700;">LVL 1</span>
+                            <span class="stat-badge" id="friend-dist" style="background: rgba(255,255,255,0.1); padding: 3px 8px; border-radius: 10px; font-size: 0.65rem; font-weight: 700;">0.0 KM</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -94,9 +160,23 @@
             <div class="drawer-content">
                 <button id="btnCloseDrawer" class="btn-close-drawer">&times;</button>
                 <div class="profile-header">
-                    <div class="avatar-lg" id="avatar-drawer">K</div>
+                    <div class="avatar-container" id="btnChangeAvatar" style="cursor: pointer; position: relative;">
+                        <div class="avatar-lg" id="avatar-drawer" style="background-size: cover; background-position: center;">K</div>
+                        <div class="avatar-overlay-btn" style="position: absolute; bottom: -5px; background: var(--accent-color); color: #000; font-size: 0.5rem; font-weight: 800; padding: 2px 5px; border-radius: 10px; left: 50%; transform: translateX(-50%); box-shadow: 0 2px 5px rgba(0,0,0,0.5);">DEĞİŞTİR</div>
+                    </div>
                     <input type="text" id="input-name" placeholder="İsminiz">
                 </div>
+                
+                <!-- Drawer Avatar Picker (Hidden by default) -->
+                <div id="drawer-avatar-picker-container" class="drawer-avatar-picker hidden" style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; margin-top: 15px;">
+                    <h4 style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 10px;">AVATAR SEÇİN</h4>
+                    <div class="avatar-picker-grid" id="drawer-avatar-picker"></div>
+                    <div class="custom-url-group" style="margin-top: 10px; display: flex; gap: 5px;">
+                        <input type="text" id="input-avatar-url" placeholder="Özel Görsel URL'si" style="flex: 1; background: #111; border: 1px solid var(--glass-border); color: #fff; padding: 7px; border-radius: 6px; font-size: 0.75rem;">
+                        <button id="btnSaveAvatarUrl" class="btn btn-primary btn-sm" style="height: 30px; font-size: 0.65rem; padding: 0 10px;">UYGULA</button>
+                    </div>
+                </div>
+
                 <div class="health-section">
                     <h4>SAĞLIK PROFİLİ</h4>
                     <div class="input-grid">
@@ -107,7 +187,11 @@
                     </div>
                     <button id="btnCreatePlan" class="btn btn-primary btn-sm" style="height:40px; margin-top:10px;">PROGRAM OLUŞTUR</button>
                 </div>
-                <ul class="menu-list"><li class="menu-item active">Ana Sayfa</li><li class="menu-item" onclick="location.reload()">Yenile</li></ul>
+                <ul class="menu-list">
+                    <li class="menu-item active">Ana Sayfa</li>
+                    <li class="menu-item" onclick="location.reload()">Yenile</li>
+                    <li class="menu-item" id="btnLogout" style="color: var(--danger-color); cursor: pointer; margin-top: 10px; font-weight: 800;">Çıkış Yap</li>
+                </ul>
             </div>
         </div>
     </div>
