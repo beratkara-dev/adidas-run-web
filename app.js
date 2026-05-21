@@ -306,7 +306,7 @@ async function loadUserData(uid) {
 function saveData() {
     if(!myUserId) return;
     const userRef = ref(db, 'users/' + myUserId);
-    update(userRef, { name: state.userName, avatar: state.avatarUrl, xp: state.xp, level: state.level, healthData: state.healthData });
+    update(userRef, { name: state.userName, avatar: state.avatarUrl, xp: state.xp, level: state.level, healthData: state.healthData, platform: 'Web' });
 }
 
 function showToast(message) {
@@ -401,7 +401,7 @@ function onLocationUpdate(position) {
 function syncMyLocation(lat, lng) {
     if(!myUserId) return;
     const userRef = ref(db, 'users/' + myUserId);
-    update(userRef, { name: state.userName, avatar: state.avatarUrl, lat: lat, lng: lng, lvl: state.level, dist: (state.totalDistance / 1000).toFixed(2), lastActive: Date.now() });
+    update(userRef, { name: state.userName, avatar: state.avatarUrl, lat: lat, lng: lng, lvl: state.level, dist: (state.totalDistance / 1000).toFixed(2), lastActive: Date.now(), platform: 'Web' });
     onDisconnect(userRef).update({ lastActive: 0 }); // Just mark inactive when disconnected
 }
 
@@ -435,6 +435,12 @@ function listenForOtherUsers() {
                     UI.friendName.innerText = u.name || "Biri Koşuyor"; 
                     UI.friendLvl.innerText = `LVL ${u.lvl || 1}`; 
                     UI.friendDist.innerText = `${u.dist || 0} KM`; 
+                    
+                    const platformEl = document.querySelector('#friend-modal .friend-status-badge');
+                    if (platformEl) {
+                        platformEl.innerText = `● AKTİF KOŞUCU (${(u.platform || 'Web').toUpperCase()})`;
+                    }
+                    
                     if(u.avatar) {
                         UI.friendAvatar.style.backgroundImage = `url('${u.avatar}')`;
                         UI.friendAvatar.innerText = "";
