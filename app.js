@@ -4,12 +4,12 @@ import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, si
 
 // --- Firebase Config ---
 const firebaseConfig = {
-  apiKey: "AIzaSyD7AlwtZFi1T93Pmjfi7Jb0YJLpyX680p8",
+  apiKey: "AIzaSyAFyVeuw-GqMe08M-aIsWXVBlnBB0NXJ_0",
   authDomain: "adidas-run-app.firebaseapp.com",
   projectId: "adidas-run-app",
   storageBucket: "adidas-run-app.firebasestorage.app",
-  messagingSenderId: "727314003122",
-  appId: "1:727314003122:web:6c493d2c1817b4acb867ab",
+  messagingSenderId: "222314003122",
+  appId: "1:222314003122:web:6c493d2c1817b4acb867ab",
   measurementId: "G-7912T2VW5L"
 };
 
