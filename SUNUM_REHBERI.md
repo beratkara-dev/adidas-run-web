@@ -33,6 +33,7 @@ Sistemdeki tüm kullanıcı profilleri, aktiviteler, günlük görevler ve geçm
       "lat": 41.0082,
       "lng": 28.9784,
       "dist": "4.20",
+      "platform": "Web",
       "lastActive": 1779388626398,
       "healthData": {
         "age": 22,
@@ -116,7 +117,7 @@ Uygulama, standart bir aktivite takip aracından farklı olarak aşağıdaki gel
 
 1. **İnteraktif Aktivite Rota Oynatıcısı (Replay Engine):** Kaydedilen geçmiş koşu koordinat dizileri (`pathPoints`) Leaflet motorunda çizilerek görselleştirilir. "Tekrar Oynat" fonksiyonu, bu koordinat matrisini belirli zaman aralıklarıyla asenkron döngüye sokarak harita üzerinde marker hareketini dinamik olarak simüle eder.
 2. **Gerçek Zamanlı Günlük Görev Motoru:** Her güne özel atanan dinamik görevler, koşu esnasında W3C Geolocation API'den gelen verilerle anlık tetiklenerek güncellenir. Görev tamamlandığında Firebase üzerinde asenkron veri güncellenir, XP eklenir ve tarayıcının yerleşik **SpeechSynthesis (Text-to-Speech)** motoru Türkçe başarı tebriği seslendirir.
-3. **Gerçek Zamanlı Çoklu Kullanıcı Desteği (Realtime P2P Simulation):** Veritabanı üzerindeki aktif kullanıcı dinleyicisi sayesinde, aynı anda sisteme giren farklı sporcular harita üzerinde canlı avatarlarıyla konumlandırılır.
+3. **Gerçek Zamanlı Çoklu Platform ve Kullanıcı Desteği (Cross-Platform Synchronization):** Veritabanındaki `platform` parametresi sayesinde, uygulamaya **Web tarayıcısından** katılan bir kullanıcı ile arkadaşının **Android Mobil uygulamasından** katılan diğer bir kullanıcı harita üzerinde birbirlerini canlı olarak takip edebilir. Marker detaylarına tıklandığında kullanıcının hangi platformda (`[WEB]` veya `[MOBİL]`) aktif olduğu gerçek zamanlı olarak gösterilir.
 
 ---
 
